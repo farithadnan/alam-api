@@ -32,8 +32,19 @@ export function buildServer(store: Store) {
     return { history: store.history(source, q.station, since) };
   });
 
-  // Earthquakes + climate (El Niño) land here in later issues.
-  app.get("/api/hazards", async () => ({ hazards: [] }));
+  // Earthquakes + climate (El Niño) — populated now; shape stays stable for the dashboard.
+  app.get("/api/hazards", async () => {
+    const earthquakes = store.latestByKind("quake", 20).map((q) => ({
+      source: q.source,
+      station: q.station,
+      stationName: q.stationName,
+      measuredAt: q.measuredAt,
+      magnitude: q.value,
+      meta: q.meta ?? null,
+    }));
+    const climate = store.latestBySource("oni")[0] ?? null;
+    return { earthquakes, climate, timestamp: new Date().toISOString() };
+  });
 
   return app;
 }
