@@ -91,7 +91,8 @@ export function buildServer(store: Store) {
         ...store.latestBySource("open-meteo").map((r) => r.meta?.state),
       ].filter(Boolean)),
     ];
-    return { states, stations, weather, forecast, hourly, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
+    const allTowns = MALAYSIA_LOCALITIES.map((l) => ({ station: l.slug, name: l.name, state: l.state }));
+    return { states, allTowns, stations, weather, forecast, hourly, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
   });
 
   app.get("/api/hazards", async () => {
