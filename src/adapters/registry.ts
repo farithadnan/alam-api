@@ -3,6 +3,7 @@ import type { Adapter } from "./types.js";
 import { DoeEqmsAdapter } from "./doeEqms.js";
 import { OpenMeteoAdapter } from "./openMeteo.js";
 import { UsgsEqAdapter } from "./usgsEq.js";
+import { OniAdapter } from "./oni.js";
 
 /** Single place that composes the active data sources (DRY: index + cli + tests). */
 export function buildAdapters(cfg: Config): Adapter[] {
@@ -10,5 +11,6 @@ export function buildAdapters(cfg: Config): Adapter[] {
     new DoeEqmsAdapter(cfg.EQMS_STATE_ID),
     new OpenMeteoAdapter(),
     new UsgsEqAdapter(),
+    new OniAdapter(),
   ];
 }
