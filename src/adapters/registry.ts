@@ -5,6 +5,7 @@ import { DoeEqmsAdapter } from "./doeEqms.js";
 import { OpenMeteoAdapter } from "./openMeteo.js";
 import { UsgsEqAdapter } from "./usgsEq.js";
 import { OniAdapter } from "./oni.js";
+import { MetWarningsAdapter } from "./metWarnings.js";
 
 /** Config may limit to specific states; empty means ALL 16 (full national coverage). */
 function resolveStates(cfg: Config): State[] {
@@ -19,5 +20,6 @@ export function buildAdapters(cfg: Config): Adapter[] {
     new OpenMeteoAdapter(),
     new UsgsEqAdapter(),
     new OniAdapter(),
+    new MetWarningsAdapter(),
   ];
 }

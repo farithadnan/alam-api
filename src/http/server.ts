@@ -52,7 +52,15 @@ export function buildServer(store: Store) {
       meta: q.meta ?? null,
     }));
     const climate = store.latestBySource("oni")[0] ?? null;
-    return { earthquakes, climate, timestamp: new Date().toISOString() };
+    const warnings = store.latestByKind("warning", 20).map((w) => ({
+      source: w.source,
+      station: w.station,
+      title: w.stationName,
+      severity: w.value,
+      measuredAt: w.measuredAt,
+      meta: w.meta ?? null,
+    }));
+    return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
   });
 
   return app;
