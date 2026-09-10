@@ -61,7 +61,8 @@ export function buildServer(store: Store) {
 
   // Single cached bundle for the dashboard: stations + weather + forecast (optionally per state)
   // + national hazards. One round-trip instead of four, all read from the snapshot store.
-  app.get("/api/summary", async (req) => {
+  app.get("/api/summary", async (req, reply) => {
+    reply.header("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
     const q = req.query as { state?: string };
     const state = q.state || "";
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);

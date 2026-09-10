@@ -18,6 +18,7 @@ const cadence = (id: string) =>
       "usgs-eq": cfg.POLL_USGS_SECONDS * 1000,
       oni: cfg.POLL_ONI_SECONDS * 1000,
       "my-met": cfg.POLL_MET_SECONDS * 1000,
+      news: cfg.POLL_NEWS_SECONDS * 1000,
     } as Record<string, number>
   )[id] ?? cfg.POLL_SECONDS * 1000;
 const stop = startScheduler(store, adapters, cadence, (m) => app.log.info(m));

@@ -12,6 +12,7 @@ const schema = z.object({
   POLL_USGS_SECONDS: z.coerce.number().int().positive().default(600),
   POLL_ONI_SECONDS: z.coerce.number().int().positive().default(86400),
   POLL_MET_SECONDS: z.coerce.number().int().positive().default(900),
+  POLL_NEWS_SECONDS: z.coerce.number().int().positive().default(1800),
 });
 
 export type Config = z.infer<typeof schema>;
