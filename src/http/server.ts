@@ -32,6 +32,12 @@ export function buildServer(store: Store) {
     return { history: store.history(source, q.station, since) };
   });
 
+  app.get("/api/forecast", async (req) => {
+    const q = req.query as { source?: string };
+    const source = q.source ?? "open-meteo";
+    return { forecast: store.forecast(source) };
+  });
+
   // Earthquakes + climate (El Niño) — populated now; shape stays stable for the dashboard.
   app.get("/api/hazards", async () => {
     const earthquakes = store.latestByKind("quake", 20).map((q) => ({

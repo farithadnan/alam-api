@@ -21,9 +21,24 @@ const airQualityResponse = {
   },
 };
 
-function stubWeather() {
+const forecastResponse = {
+  daily: {
+    time: ["2026-09-11", "2026-09-12"],
+    temperature_2m_max: [31, 32],
+    temperature_2m_min: [24, 25],
+    precipitation_probability_max: [20, null],
+    weather_code: [1, 3],
+    uv_index_max: [10, 8],
+  },
+};
+
+function stubOpenMeteo() {
   return vi.fn(async (url: string) => {
-    const body = url.includes("air-quality") ? airQualityResponse : weatherResponse;
+    const body = url.includes("air-quality")
+      ? airQualityResponse
+      : url.includes("daily=")
+      ? forecastResponse
+      : weatherResponse;
     return { ok: true, json: async () => body };
   });
 }
@@ -34,20 +49,22 @@ describe("OpenMeteoAdapter", () => {
     vi.restoreAllMocks();
   });
 
-  it("normalizes weather and aqi Observations for each city", async () => {
-    const fetch = stubWeather();
+  it("normalizes weather, aqi and forecast Observations for each city", async () => {
+    const fetch = stubOpenMeteo();
     vi.stubGlobal("fetch", fetch);
 
-    const adapter = new OpenMeteoAdapter();
-    const observations = await adapter.poll();
+    const observations = await new OpenMeteoAdapter().poll();
 
-    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(fetch).toHaveBeenCalledTimes(9); // weather + aqi + forecast per city x 3
 
     const weather = observations.filter((o) => o.kind === "weather");
     const aqi = observations.filter((o) => o.kind === "aqi");
+    const forecast = observations.filter((o) => o.kind === "forecast");
 
     expect(weather).toHaveLength(3);
     expect(aqi).toHaveLength(3);
+    expect(forecast).toHaveLength(6); // 3 cities x 2 days
+
     expect(weather[0]).toEqual({
       source: "open-meteo",
       station: "johor-bahru",
@@ -73,6 +90,13 @@ describe("OpenMeteoAdapter", () => {
         pm10: airQualityResponse.current.pm10,
         uv: airQualityResponse.current.uv_index,
       },
+    });
+    expect(forecast[0]).toMatchObject({
+      source: "open-meteo",
+      station: "johor-bahru",
+      kind: "forecast",
+      value: 31,
+      meta: { tmin: 24, tmax: 31, precip: 20, uv: 10, code: 1 },
     });
     expect(weather[1]?.station).toBe("batu-pahat");
     expect(weather[2]?.station).toBe("muar");

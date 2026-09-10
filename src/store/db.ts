@@ -132,6 +132,16 @@ export class Store {
     return rows.map((r) => this.mapRow(r));
   }
 
+  /** Daily forecast rows for a source, grouped by station then day ascending. */
+  forecast(source: string): ObservationRow[] {
+    return this.read(
+      `SELECT source, station, station_name, measured_at, kind, value, meta
+         FROM observations WHERE source = ? AND kind = 'forecast'
+         ORDER BY station, measured_at`,
+      [source],
+    );
+  }
+
   pruneOlderThan(days: number): number {
     const cutoff = new Date(Date.now() + 8 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 19);
     const res = this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).run(cutoff);
