@@ -2,6 +2,24 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
+import { MALAYSIA_LOCALITIES } from "../core/localities.js";
+
+/** Approximate a monitoring station's position: match to a known locality, else state centroid. */
+function stationCoords(name: string, stateName?: string | null): { lat: number; lon: number } | null {
+  const slug = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const n = slug(name);
+  const hit =
+    MALAYSIA_LOCALITIES.find((l) => slug(l.name) === n) ||
+    MALAYSIA_LOCALITIES.find((l) => l.slug === n) ||
+    MALAYSIA_LOCALITIES.find((l) => slug(l.name).includes(n) || n.includes(slug(l.name)));
+  if (hit) return { lat: hit.lat, lon: hit.lon };
+  if (stateName) {
+    const st = MALAYSIA_LOCALITIES.filter((l) => l.state === stateName);
+    if (st.length) return { lat: st.reduce((a, l) => a + l.lat, 0) / st.length, lon: st.reduce((a, l) => a + l.lon, 0) / st.length };
+  }
+  return null;
+}
+
 
 function decorate(o: ObservationRow) {
   // Only DOE eqms emits the Malaysia APIMS scale; Open-Meteo's us_aqi is a different
@@ -51,6 +69,7 @@ export function buildServer(store: Store) {
     const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
     const stations = stationBase.map((s) => ({
       ...s,
+      coords: stationCoords(s.stationName, s.meta?.state as string | null | undefined),
       trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
     }));
     const weather = inState(store.latestBySource("open-meteo"));

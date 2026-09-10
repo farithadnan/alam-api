@@ -35,6 +35,7 @@ export class MetWarningsAdapter implements Adapter {
       const title = w.warning_issue?.title_en || w.heading_en || "Weather warning";
       const titleBm = w.warning_issue?.title_bm || "";
       if (/(tiada nasihat|no advisory|no warning)/i.test(`${title} ${titleBm} ${w.heading_en ?? ""}`)) continue; // "no advisory" sentinel
+      if (/(rough seas|laut bergelora|shipping|perkapalan)/i.test(`${title} ${titleBm}`)) continue; // marine/shipping bulletins = consumer noise
       const cat = CATEGORY.exec(w.heading_en || "");
       const severity = (cat && SEVERITY[cat[1]!]) || 1;
       out.push({

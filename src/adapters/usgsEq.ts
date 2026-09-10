@@ -50,7 +50,7 @@ export class UsgsEqAdapter implements Adapter {
       measuredAt: new Date(f.properties.time).toISOString(),
       kind: "quake" as const,
       value: f.properties.mag ?? 0,
-      meta: { depth: f.properties.depth, url: f.properties.url },
+      meta: { depth: f.properties.depth, url: f.properties.url, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] },
     }));
   }
 }

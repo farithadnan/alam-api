@@ -36,20 +36,14 @@ const SAMPLE = [
 describe("MetWarningsAdapter", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("normalizes MET warnings with bilingual meta and category severity", async () => {
+  it("normalizes MET warnings, filters sentinels and marine/shipping bulletins", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => SAMPLE })));
     const rows = await new MetWarningsAdapter().poll();
 
-    expect(rows).toHaveLength(2);
-    const [wind, rain] = rows;
-    expect(wind).toMatchObject({
-      source: "my-met",
-      kind: "warning",
-      value: 1,
-      station: "strong-winds-and-rough-seas-warning",
-    });
-    expect(wind?.meta).toMatchObject({ titleBm: "Amaran Angin Kencang dan Laut Bergelora", validTo: "2026-09-15T00:00:00" });
-    expect(rain?.value).toBe(2); // second category → severity 2
-    expect(rain?.meta).toMatchObject({ titleBm: "Amaran Hujan Lebat" });
+    // land-relevant only: "Strong Winds and Rough Seas" (marine) and "No Advisory" are both dropped
+    expect(rows).toHaveLength(1);
+    const [rain] = rows;
+    expect(rain).toMatchObject({ source: "my-met", kind: "warning", value: 2 });
+    expect(rain?.meta).toMatchObject({ titleBm: "Amaran Hujan Lebat", validTo: "2026-09-12T00:00:00" });
   });
 });
