@@ -1,7 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DatabaseSync, type SQLInputValue, type SQLOutputValue } from "node:sqlite";
+import { createRequire } from "node:module";
+// type-only import of node:sqlite (erased at build/vite time)
+import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import type { Observation } from "../core/types.js";
+
+// node:sqlite is a builtin newer than the lists Vite/vite-node recognize, so loading
+// it through createRequire bypasses Vite's ESM resolver and stays a native Node require.
+const require = createRequire(import.meta.url);
+const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
 
 export interface ObservationRow {
   source: string;
@@ -18,7 +25,7 @@ function toRow(o: Observation): SQLInputValue[] {
 }
 
 export class Store {
-  readonly db: DatabaseSync;
+  readonly db: InstanceType<typeof DatabaseSync>;
 
   constructor(path: string) {
     mkdirSync(dirname(path), { recursive: true });

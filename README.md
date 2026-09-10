@@ -70,5 +70,6 @@ Issues queue (implemented as issues on the repos):
 ## Notes
 
 - DOE `eqms` returns timestamps in **Malaysia local time (UTC+08)**; stored as returned.
+- **Two different AQI scales collide**: Open-Meteo's `us_aqi` is the US 500-pt scale, while DOE `eqms` is the Malaysia APIMS index (different ranges/bands). The `aqiBand` helper classifies the **Malaysia** scale — the dashboard must not apply the Malaysian bands to Open-Meteo's US AQI without relabeling or converting.
 - Old blog note: this service is portable — runs on GitHub Actions (cron) or any Node host,
   so the 1-month VPS tryout doesn't lock it in.
