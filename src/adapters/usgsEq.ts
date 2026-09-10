@@ -28,14 +28,16 @@ function truncate(s: string, max: number): string {
 
 /**
  * USGS FDSN earthquake feed (earthquake.usgs.gov) — free, key-less.
- * Polls the last 24h for SE-Asia (4.5+), emitting one `quake` Observation
- * per event, capped to the most recent set to keep payloads sane.
+ * Polls the last 7 days for SE-Asia (4.5+), emitting one `quake` Observation
+ * per event, capped to the most recent set to keep payloads sane. A wider
+ * window keeps the hazards view populated during quiet days while staying
+ * idempotent (each event has a stable USGS event id).
  */
 export class UsgsEqAdapter implements Adapter {
   readonly id = "usgs-eq" as const;
 
   async poll(): Promise<Observation[]> {
-    const start = new Date(Date.now() - 24 * 3_600_000).toISOString();
+    const start = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString();
     const url =
       `${BASE_URL}?format=geojson&starttime=${start}` +
       `&${SE_ASIA_BBOX}&minmagnitude=4.5&orderby=time`;
