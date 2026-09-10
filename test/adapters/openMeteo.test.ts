@@ -6,9 +6,16 @@ const weatherResponse = {
     temperature_2m: 30.2,
     relative_humidity_2m: 78,
     wind_speed_10m: 5.4,
+    wind_gusts_10m: 7.1,
     precipitation: 0.0,
+    apparent_temperature: 33.5,
+    weather_code: 1,
+    pressure_msl: 1009.4,
+    visibility: 10040,
+    dew_point_2m: 24.7,
     time: "2026-09-11T06:00",
   },
+  daily: { sunrise: ["2026-09-11T06:57"], sunset: ["2026-09-11T19:04"] },
 };
 const airQualityResponse = {
   current: { pm2_5: 15.3, pm10: 28.7, us_aqi: 62, uv_index: 3, time: "2026-09-11T06:00" },
@@ -28,9 +35,9 @@ function stubOpenMeteo() {
   return vi.fn(async (url) => {
     const body = url.includes("air-quality")
       ? airQualityResponse
-      : url.includes("daily=")
-        ? forecastResponse
-        : weatherResponse;
+      : url.includes("current=")
+        ? weatherResponse
+        : forecastResponse;
     return { ok: true, json: async () => body };
   });
 }
