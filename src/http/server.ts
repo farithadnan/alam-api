@@ -84,6 +84,9 @@ export function buildServer(store: Store) {
     const warnings = store.latestByKind("warning", 20).map((w) => ({
       source: w.source, station: w.station, title: w.stationName, severity: w.value, measuredAt: w.measuredAt, meta: w.meta ?? null,
     }));
+    const news = store.latestByKind("news", 15).map((n) => ({
+      title: n.stationName, url: n.meta?.url ?? null, outlet: n.meta?.outlet ?? null, publishedAt: n.measuredAt,
+    }));
     const climate = store.latestBySource("oni")[0] ?? null;
     const states = [
       ...new Set([
@@ -92,7 +95,7 @@ export function buildServer(store: Store) {
       ].filter(Boolean)),
     ];
     const allTowns = MALAYSIA_LOCALITIES.map((l) => ({ station: l.slug, name: l.name, state: l.state }));
-    return { states, allTowns, stations, weather, forecast, hourly, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
+    return { states, allTowns, stations, weather, forecast, hourly, news, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
   });
 
   app.get("/api/hazards", async () => {
