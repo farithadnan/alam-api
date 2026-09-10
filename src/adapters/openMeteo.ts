@@ -8,6 +8,7 @@ interface CurrentData {
   relative_humidity_2m: number;
   wind_speed_10m: number;
   precipitation: number;
+  apparent_temperature: number;
   time: string;
 }
 interface WeatherResponse { current: CurrentData }
@@ -33,7 +34,7 @@ interface ForecastResponse { daily: Daily }
 
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
-const WEATHER_PARAMS = "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation";
+const WEATHER_PARAMS = "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,apparent_temperature";
 const AIR_QUALITY_PARAMS = "pm2_5,pm10,us_aqi,uv_index";
 const FORECAST_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max";
 
@@ -64,7 +65,7 @@ export class OpenMeteoAdapter implements Adapter {
           measuredAt: weather.time,
           kind: "weather",
           value: weather.temperature_2m,
-          meta: { state: loc.state, humidity: weather.relative_humidity_2m, wind: weather.wind_speed_10m, precipitation: weather.precipitation },
+          meta: { state: loc.state, humidity: weather.relative_humidity_2m, wind: weather.wind_speed_10m, precipitation: weather.precipitation, apparentTemp: weather.apparent_temperature },
         },
         {
           source: "open-meteo",
