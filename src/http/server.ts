@@ -41,7 +41,31 @@ export function buildServer(store: Store) {
     return { forecast: store.forecast(source) };
   });
 
-  // Earthquakes + climate (El Niño) — populated now; shape stays stable for the dashboard.
+  // Single cached bundle for the dashboard: stations + weather + forecast (optionally per state)
+  // + national hazards. One round-trip instead of four, all read from the snapshot store.
+  app.get("/api/summary", async (req) => {
+    const q = req.query as { state?: string };
+    const state = q.state || "";
+    const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
+    const stations = inState(store.latestBySource("doe-eqms").map(decorate));
+    const weather = inState(store.latestBySource("open-meteo"));
+    const forecast = inState(store.forecast("open-meteo"));
+    const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
+      source: qk.source, station: qk.station, stationName: qk.stationName, measuredAt: qk.measuredAt, magnitude: qk.value, meta: qk.meta ?? null,
+    }));
+    const warnings = store.latestByKind("warning", 20).map((w) => ({
+      source: w.source, station: w.station, title: w.stationName, severity: w.value, measuredAt: w.measuredAt, meta: w.meta ?? null,
+    }));
+    const climate = store.latestBySource("oni")[0] ?? null;
+    const states = [
+      ...new Set([
+        ...store.latestBySource("doe-eqms").map((r) => r.meta?.state),
+        ...store.latestBySource("open-meteo").map((r) => r.meta?.state),
+      ].filter(Boolean)),
+    ];
+    return { states, stations, weather, forecast, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
+  });
+
   app.get("/api/hazards", async () => {
     const earthquakes = store.latestByKind("quake", 20).map((q) => ({
       source: q.source,
