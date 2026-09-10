@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OniAdapter, ensoPhase } from "./oni.js";
+import { OniAdapter, ensoPhase } from "../../src/adapters/oni.js";
 
 const SAMPLE = `  JFM 2026  26.57  -0.21
   FMA 2026  27.34   0.11

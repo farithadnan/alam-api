@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { UsgsEqAdapter } from "./usgsEq.js";
+import { UsgsEqAdapter } from "../../src/adapters/usgsEq.js";
 
 const geojson = {
   type: "FeatureCollection",

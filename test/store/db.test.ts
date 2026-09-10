@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Store } from "./db.js";
+import { Store } from "../../src/store/db.js";
 
 const openMeteoRow = (kind: "weather" | "aqi", value: number) => ({
   source: "open-meteo" as const,

@@ -24,6 +24,8 @@ src/
   scheduler.ts  polls adapters -> ingest -> store, on staggered intervals
   cli.ts        one-shot ingest (for cron/tests)
   index.ts      boot: store -> server -> scheduler -> graceful shutdown
+
+test/           vitest suites mirrored under core/, adapters/, store/ (offline, mock fetch)
 ```
 
 - **Data fetching**: every source produces normalized `Observation`s through one `Adapter` contract — DRY, and the rest of the system never knows a specific source exists.

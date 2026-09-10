@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aqiBand } from "./bands.js";
+import { aqiBand } from "../../src/core/bands.js";
 
 describe("aqiBand", () => {
   it("classifies the Malaysia APIMS bands", () => {

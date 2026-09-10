@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { OpenMeteoAdapter } from "./openMeteo.js";
+import { OpenMeteoAdapter } from "../../src/adapters/openMeteo.js";
 
 const weatherResponse = {
   current: {
