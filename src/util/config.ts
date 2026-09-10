@@ -4,8 +4,8 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   DB_PATH: z.string().default("data/udara.db"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug"]).default("info"),
-  /** DOE APIMS state id — 1 = Johor. */
-  EQMS_STATE_ID: z.coerce.number().int().positive().default(1),
+  /** Comma-separated DOE state ids to poll; empty = all 16 states. */
+  EQMS_STATES: z.string().default(""),
   POLL_SECONDS: z.coerce.number().int().positive().default(300),
 });
 
