@@ -4,12 +4,13 @@ import path from "node:path";
 import { loadConfig } from "./util/config.js";
 import { Store } from "./store/db.js";
 import { DoeEqmsAdapter } from "./adapters/doeEqms.js";
+import { OpenMeteoAdapter } from "./adapters/openMeteo.js";
 import { buildServer } from "./http/server.js";
 import { startScheduler } from "./scheduler.js";
 
 const cfg = loadConfig();
 const store = new Store(cfg.DB_PATH);
-const adapters = [new DoeEqmsAdapter(cfg.EQMS_STATE_ID)];
+const adapters = [new DoeEqmsAdapter(cfg.EQMS_STATE_ID), new OpenMeteoAdapter()];
 
 const app = buildServer(store);
 const stop = startScheduler(store, adapters, () => cfg.POLL_SECONDS * 1000, (m) => app.log.info(m));
