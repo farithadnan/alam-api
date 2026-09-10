@@ -11,6 +11,7 @@ interface GeoFeature {
     depth: number;
     url: string;
   };
+  geometry: { type: string; coordinates: number[] };
 }
 interface GeoJsonResponse {
   features: GeoFeature[];

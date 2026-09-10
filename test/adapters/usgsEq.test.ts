@@ -13,6 +13,7 @@ const geojson = {
         depth: 12.4,
         url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000aaaa",
       },
+      geometry: { type: "Point", coordinates: [126.5, 3.2] },
     },
     {
       id: "us7000bbbb",
@@ -24,6 +25,7 @@ const geojson = {
         depth: 30.0,
         url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000bbbb",
       },
+      geometry: { type: "Point", coordinates: [120.5, -0.9] },
     },
   ],
 };
@@ -54,6 +56,8 @@ describe("UsgsEqAdapter", () => {
       meta: {
         depth: 12.4,
         url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000aaaa",
+        lat: 3.2,
+        lon: 126.5,
       },
     });
 
