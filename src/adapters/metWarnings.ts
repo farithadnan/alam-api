@@ -16,6 +16,16 @@ const WARNINGS_URL = "https://api.data.gov.my/weather/warning";
 const CATEGORY = /(FIRST|SECOND|THIRD)\s+CATEGORY/i;
 const SEVERITY: Record<string, number> = { FIRST: 1, SECOND: 2, THIRD: 3 };
 
+/** Classify a warning into a consumer-facing type so the UI can label it. */
+function warnType(title: string, heading: string): string {
+  const s = `${title} ${heading}`.toLowerCase();
+  if (/heat|haba|hot spell|hot weather/.test(s)) return "heat";
+  if (/thunder|ribut petir|lightning/.test(s)) return "thunderstorm";
+  if (/rain|hujan/.test(s)) return "rain";
+  if (/wind|angin/.test(s)) return "wind";
+  return "weather";
+}
+
 function slug(s: string): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 }
@@ -47,6 +57,7 @@ export class MetWarningsAdapter implements Adapter {
         value: severity,
         meta: {
           titleBm,
+          type: warnType(title, w.heading_en ?? ""),
           headingEn: w.heading_en ?? null,
           textEn: w.text_en ?? null,
           validFrom: w.valid_from ?? null,
