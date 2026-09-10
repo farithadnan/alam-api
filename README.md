@@ -1,4 +1,4 @@
-# udara-api
+# alam-api
 
 Air-quality & environmental-hazards **ingest + read API** for Malaysia, Johor first.
 A `solat.my`-style dashboard (repo: `udara-dashboard`) reads this API for a clean view of what the official APIMS site shows awkwardly.

@@ -1,9 +1,11 @@
 {
-  "name": "udara-api",
+  "name": "alam-api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Air-quality & environmental hazards ingest + read API for Malaysia (Johor first). Sources: DOE eqms, Open-Meteo, USGS, NOAA ONI.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
