@@ -18,7 +18,7 @@ A `solat.my`-style dashboard (repo: `udara-dashboard`) reads this API for a clea
 src/
   adapters/   one file per data source, each implements `Adapter`  (Open/Closed: add a source = add one file)
   core/       domain types + AQI band logic (pure, no I/O)
-  store/      sqlite schema + repository (the only place SQL lives)
+  store/      sqlite schema + versioned migrations + repository (the only place SQL lives)
   http/       Fastify routes (the only place HTTP concerns live)
   util/       config (zod), fetch-with-retry
   scheduler.ts  polls adapters -> ingest -> store, on staggered intervals
@@ -64,7 +64,7 @@ Issues queue (implemented as issues on the repos):
 - [ ] **open-meteo** adapter — weather (temp/humidity/wind/precip) + air quality + UV (free, no key)
 - [ ] **usgs-eq** adapter — SE-Asia earthquake feed
 - [ ] **oni** adapter — El Niño / La Niña phase (parsed NOAA index)
-- [ ] Real HTTP/data tests + a migration strategy (proper schema versioning)
+- [x] Real HTTP/data tests + a migration strategy (proper schema versioning)
 - [ ] `/api/hazards` responses wired to stored quake + climate data
 - [ ] `udara-dashboard` frontend repo (mobile-first, list-based)
 - [ ] `udara-notifier` (Telegram) — Unhealthy-AQI + quake/tsunami push alerts

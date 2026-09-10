@@ -1,5 +1,6 @@
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 // type-only import of node:sqlite (erased at build/vite time)
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
@@ -30,22 +31,39 @@ export class Store {
   constructor(path: string) {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS observations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source TEXT NOT NULL,
-        station TEXT NOT NULL,
-        station_name TEXT NOT NULL DEFAULT '',
-        measured_at TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        value REAL NOT NULL,
-        meta TEXT,
-        ingested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-        UNIQUE(source, station, measured_at, kind)
-      );
-      CREATE INDEX IF NOT EXISTS idx_obs_latest  ON observations(source, station, measured_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_obs_prune   ON observations(measured_at);
-    `);
+    this.applyMigrations();
+  }
+
+  /**
+   * Versioned SQL migrations. Applies each `migrations/*.sql` in filename order once,
+   * tracked in a `migrations` table, each step inside its own transaction.
+   */
+  private applyMigrations(): void {
+    this.db.exec(
+      `CREATE TABLE IF NOT EXISTS migrations (
+        id TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      )`,
+    );
+    const dir = fileURLToPath(new URL("./migrations/", import.meta.url));
+    const appliedRows = this.db.prepare(`SELECT id FROM migrations`).all() as { id: string }[];
+    const applied = new Set(appliedRows.map((r) => r.id));
+    const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+    for (const f of files) {
+      const id = f.replace(/\.sql$/, "");
+      if (applied.has(id)) continue;
+      const sql = readFileSync(join(dir, f), "utf8");
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(sql);
+        this.db.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(id);
+        this.db.exec("COMMIT");
+        console.log(`[db] applied migration ${id}`);
+      } catch (e) {
+        this.db.exec("ROLLBACK");
+        throw e;
+      }
+    }
   }
 
   /** Idempotent upsert keyed on (source, station, measured_at). Returns rows actually inserted. */
