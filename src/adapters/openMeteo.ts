@@ -31,13 +31,20 @@ interface Daily {
   weather_code: (number | null)[];
   uv_index_max: (number | null)[];
 }
-interface ForecastResponse { daily: Daily }
+interface Hourly {
+  time: string[];
+  temperature_2m: (number | null)[];
+  precipitation_probability: (number | null)[];
+  weather_code: (number | null)[];
+}
+interface ForecastResponse { daily: Daily; hourly?: Hourly }
 
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const WEATHER_PARAMS = "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,apparent_temperature,weather_code";
 const AIR_QUALITY_PARAMS = "pm2_5,pm10,us_aqi,uv_index";
 const FORECAST_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max";
+const HOURLY_PARAMS = "temperature_2m,precipitation_probability,weather_code";
 
 /**
  * Open-Meteo — free, key-less weather + air-quality + UV + 7-day forecast for
@@ -53,11 +60,13 @@ export class OpenMeteoAdapter implements Adapter {
     const out: Observation[] = [];
     for (const loc of this.localities) {
       try {
-        const [weather, air, forecast] = await Promise.all([
+        const [weather, air, fc] = await Promise.all([
           this.fetch<WeatherResponse>(WEATHER_URL, loc, `current=${WEATHER_PARAMS}`).then((d) => d.current),
           this.fetch<AirQualityResponse>(AIR_QUALITY_URL, loc, `current=${AIR_QUALITY_PARAMS}`).then((d) => d.current),
-          this.fetch<ForecastResponse>(WEATHER_URL, loc, `daily=${FORECAST_PARAMS}&timezone=auto`).then((d) => d.daily),
+          this.fetch<ForecastResponse>(WEATHER_URL, loc, `daily=${FORECAST_PARAMS}&hourly=${HOURLY_PARAMS}&forecast_hours=24&timezone=auto`),
         ]);
+        const forecast = fc.daily;
+        const hourly = fc.hourly;
         out.push(
         {
           source: "open-meteo",
@@ -95,7 +104,20 @@ export class OpenMeteoAdapter implements Adapter {
             code: forecast.weather_code[i] ?? null,
           },
         });
+      }
+      if (hourly) {
+        for (let i = 0; i < hourly.time.length; i++) {
+          out.push({
+            source: "open-meteo",
+            station: loc.slug,
+            stationName: loc.name,
+            measuredAt: hourly.time[i] ?? "",
+            kind: "hourly",
+            value: hourly.temperature_2m[i] ?? 0,
+            meta: { state: loc.state, precip: hourly.precipitation_probability[i] ?? null, code: hourly.weather_code[i] ?? null },
+          });
         }
+      }
       } catch {
         // skip a locality that failed to fetch; keep the rest of the country
       }

@@ -72,8 +72,12 @@ export function buildServer(store: Store) {
       coords: stationCoords(s.stationName, s.meta?.state as string | null | undefined),
       trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
     }));
-    const weather = inState(store.latestBySource("open-meteo"));
+    const weather = inState(store.latestBySource("open-meteo")).map((r) => {
+      const loc = MALAYSIA_LOCALITIES.find((l) => l.slug === r.station);
+      return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
+    });
     const forecast = inState(store.forecast("open-meteo"));
+    const hourly = inState(store.hourly("open-meteo"));
     const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
       source: qk.source, station: qk.station, stationName: qk.stationName, measuredAt: qk.measuredAt, magnitude: qk.value, meta: qk.meta ?? null,
     }));
@@ -87,7 +91,7 @@ export function buildServer(store: Store) {
         ...store.latestBySource("open-meteo").map((r) => r.meta?.state),
       ].filter(Boolean)),
     ];
-    return { states, stations, weather, forecast, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
+    return { states, stations, weather, forecast, hourly, hazards: { warnings, earthquakes, climate }, ts: new Date().toISOString() };
   });
 
   app.get("/api/hazards", async () => {

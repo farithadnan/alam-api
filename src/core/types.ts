@@ -1,6 +1,6 @@
 export type SourceId = "doe-eqms" | "open-meteo" | "usgs-eq" | "oni" | "my-met";
 
-export type Kind = "aqi" | "weather" | "quake" | "climate" | "forecast" | "warning";
+export type Kind = "aqi" | "weather" | "quake" | "climate" | "forecast" | "warning" | "hourly";
 
 /** Normalized record every adapter produces — the single contract (DRY/OCP). */
 export interface Observation {
