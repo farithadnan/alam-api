@@ -87,16 +87,19 @@ export class Store {
     return rows.map((r) => this.mapRow(r));
   }
 
-  /** Latest reading per station for a source. */
+  /** Latest reading per (station, kind) for a source (observed only; forecast is separate). */
   latestBySource(source: string): ObservationRow[] {
     return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations
-         WHERE source = ? AND measured_at = (
-           SELECT MAX(measured_at) FROM observations AS o2
-           WHERE o2.source = observations.source AND o2.station = observations.station
+      `SELECT o.source, o.station, o.station_name, o.measured_at, o.kind, o.value, o.meta
+         FROM observations o
+         WHERE o.source = ? AND o.kind <> 'forecast' AND o.measured_at = (
+           SELECT MAX(o2.measured_at) FROM observations o2
+           WHERE o2.source = o.source
+             AND o2.station = o.station
+             AND o2.kind = o.kind
+             AND o2.kind <> 'forecast'
          )
-         ORDER BY station`,
+         ORDER BY o.station, o.kind`,
       [source],
     );
   }

@@ -35,4 +35,24 @@ describe("Store", () => {
       store.close();
     }
   });
+
+  it("excludes future forecast from 'current' but exposes it via forecast()", () => {
+    const store = new Store(":memory:");
+    try {
+      const now = "2026-09-10T11:00:00";
+      const future = "2026-09-15T12:00:00Z";
+      store.ingest([
+        openMeteoRow("weather", 27),
+        openMeteoRow("aqi", 42),
+        { ...openMeteoRow("forecast" as never, 31), measuredAt: future, station: "johor-bahru" },
+      ]);
+      const current = store.latestBySource("open-meteo");
+      expect(current.map((r) => r.kind).sort()).toEqual(["aqi", "weather"]); // not forecast
+      const fc = store.forecast("open-meteo");
+      expect(fc).toHaveLength(1);
+      expect(fc[0]?.kind).toBe("forecast");
+    } finally {
+      store.close();
+    }
+  });
 });

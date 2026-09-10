@@ -4,7 +4,10 @@ import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
 
 function decorate(o: ObservationRow) {
-  return { ...o, band: o.kind === "aqi" ? aqiBand(o.value) : undefined };
+  // Only DOE eqms emits the Malaysia APIMS scale; Open-Meteo's us_aqi is a different
+  // (US 500-pt) scale and must not be band-labelled with the Malaysian bands.
+  const band = o.kind === "aqi" && o.source === "doe-eqms" ? aqiBand(o.value) : undefined;
+  return { ...o, band };
 }
 
 export function buildServer(store: Store) {
