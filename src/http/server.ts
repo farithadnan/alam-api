@@ -28,11 +28,57 @@ function decorate(o: ObservationRow) {
   return { ...o, band };
 }
 
+const RATE_LIMIT_PER_MIN = Number(process.env.RATE_LIMIT_PER_MIN ?? 120);
+
 export function buildServer(store: Store) {
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+  const app = Fastify({
+    logger: { level: process.env.LOG_LEVEL ?? "info" },
+    // `/v1/*` is a stable public alias of `/api/*` — one implementation, two paths.
+    rewriteUrl: (req) => (req.url ?? "").replace(/^\/v1\//, "/api/"),
+  });
   app.register(cors, { origin: true });
 
+  // In-memory rate limit (per IP, fixed 60s window). Enough for a single free node;
+  // swap for @fastify/rate-limit + a shared store if this ever scales out.
+  const buckets = new Map<string, { n: number; reset: number }>();
+  app.addHook("onRequest", async (req, reply) => {
+    const url = req.raw.url ?? "";
+    if (!/\/(api|v1)\//.test(url)) return;
+    const now = Date.now();
+    let b = buckets.get(req.ip);
+    if (!b || b.reset < now) {
+      b = { n: 0, reset: now + 60_000 };
+      buckets.set(req.ip, b);
+    }
+    b.n++;
+    reply.header("X-RateLimit-Limit", RATE_LIMIT_PER_MIN);
+    reply.header("X-RateLimit-Remaining", Math.max(0, RATE_LIMIT_PER_MIN - b.n));
+    if (b.n > RATE_LIMIT_PER_MIN) {
+      const retry = Math.ceil((b.reset - now) / 1000);
+      reply.header("Retry-After", retry);
+      return reply.code(429).send({ error: "rate_limited", detail: `Limit ${RATE_LIMIT_PER_MIN} requests/min. Retry after ${retry}s.` });
+    }
+  });
+
   app.get("/health", async () => ({ ok: true, t: new Date().toISOString() }));
+
+  /** Self-describing index so the public API is discoverable. */
+  app.get("/api", async () => ({
+    name: "Alam API",
+    version: "v1",
+    note: "Free, public, no key. Please cache; data refreshes every few minutes.",
+    rateLimit: `${RATE_LIMIT_PER_MIN} requests/min per IP`,
+    endpoints: [
+      "/api/summary?state=<State>",
+      "/api/current?source=doe-eqms",
+      "/api/history?source=doe-eqms&station=<id>&hours=24",
+      "/api/forecast?source=open-meteo",
+      "/api/stations",
+      "/api/hazards",
+      "/api/news",
+    ],
+    alias: "/v1/* mirrors /api/*",
+  }));
 
   app.get("/api/stations", async () => {
     return { stations: store.stations() };
@@ -119,6 +165,15 @@ export function buildServer(store: Store) {
     }));
     return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
   });
+
+  app.get("/api/news", async () => ({
+    news: store.latestByKind("news", 30).map((n) => ({
+      title: n.stationName,
+      url: n.meta?.url ?? null,
+      outlet: n.meta?.outlet ?? null,
+      publishedAt: n.measuredAt,
+    })),
+  }));
 
   return app;
 }
