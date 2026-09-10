@@ -47,7 +47,12 @@ export function buildServer(store: Store) {
     const q = req.query as { state?: string };
     const state = q.state || "";
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
-    const stations = inState(store.latestBySource("doe-eqms").map(decorate));
+    const stationBase = inState(store.latestBySource("doe-eqms").map(decorate));
+    const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
+    const stations = stationBase.map((s) => ({
+      ...s,
+      trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
+    }));
     const weather = inState(store.latestBySource("open-meteo"));
     const forecast = inState(store.forecast("open-meteo"));
     const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
