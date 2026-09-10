@@ -8,7 +8,6 @@ interface GeoFeature {
     mag: number | null;
     place: string | null;
     time: number;
-    depth: number;
     url: string;
   };
   geometry: { type: string; coordinates: number[] };
@@ -51,7 +50,7 @@ export class UsgsEqAdapter implements Adapter {
       measuredAt: new Date(f.properties.time).toISOString(),
       kind: "quake" as const,
       value: f.properties.mag ?? 0,
-      meta: { depth: f.properties.depth, url: f.properties.url, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] },
+      meta: { depth: f.geometry.coordinates[2], url: f.properties.url, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] },
     }));
   }
 }

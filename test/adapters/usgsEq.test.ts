@@ -10,10 +10,9 @@ const geojson = {
         mag: 5.2,
         place: "Talaud Islands, Indonesia",
         time: 1726000000000,
-        depth: 12.4,
         url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000aaaa",
       },
-      geometry: { type: "Point", coordinates: [126.5, 3.2] },
+      geometry: { type: "Point", coordinates: [126.5, 3.2, 12.4] },
     },
     {
       id: "us7000bbbb",
@@ -22,10 +21,9 @@ const geojson = {
         place:
           "A very long place name that should definitely be truncated down to something much shorter for a sane station label, in a coastal region of Southeast Asia near a subduction zone",
         time: 1725990000000,
-        depth: 30.0,
         url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000bbbb",
       },
-      geometry: { type: "Point", coordinates: [120.5, -0.9] },
+      geometry: { type: "Point", coordinates: [120.5, -0.9, 30.0] },
     },
   ],
 };

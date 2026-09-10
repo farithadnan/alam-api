@@ -1,6 +1,6 @@
-import { fetchText } from "../util/http.js";
-import type { Adapter } from "./types.js";
-import type { Observation } from "../core/types.js";
+import { fetchText } from "../../util/http.js";
+import type { Adapter } from "../types.js";
+import type { Observation } from "../../core/types.js";
 
 /** Malaysian outlets + weather/hazard keywords — keep the feed relevant. */
 const DEFAULT_FEEDS: [string, string][] = [
