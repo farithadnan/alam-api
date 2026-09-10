@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpenMeteoAdapter } from "../../src/adapters/openMeteo.js";
 
 const weatherResponse = {
@@ -10,17 +10,9 @@ const weatherResponse = {
     time: "2026-09-11T06:00",
   },
 };
-
 const airQualityResponse = {
-  current: {
-    pm2_5: 15.3,
-    pm10: 28.7,
-    us_aqi: 62,
-    uv_index: 3,
-    time: "2026-09-11T06:00",
-  },
+  current: { pm2_5: 15.3, pm10: 28.7, us_aqi: 62, uv_index: 3, time: "2026-09-11T06:00" },
 };
-
 const forecastResponse = {
   daily: {
     time: ["2026-09-11", "2026-09-12"],
@@ -33,15 +25,17 @@ const forecastResponse = {
 };
 
 function stubOpenMeteo() {
-  return vi.fn(async (url: string) => {
+  return vi.fn(async (url) => {
     const body = url.includes("air-quality")
       ? airQualityResponse
       : url.includes("daily=")
-      ? forecastResponse
-      : weatherResponse;
+        ? forecastResponse
+        : weatherResponse;
     return { ok: true, json: async () => body };
   });
 }
+
+const ONE_LOCALITY = [{ slug: "johor-bahru", name: "Johor Bahru", state: "Johor", lat: 1.49, lon: 103.74 }];
 
 describe("OpenMeteoAdapter", () => {
   afterEach(() => {
@@ -49,56 +43,15 @@ describe("OpenMeteoAdapter", () => {
     vi.restoreAllMocks();
   });
 
-  it("normalizes weather, aqi and forecast Observations for each city", async () => {
-    const fetch = stubOpenMeteo();
-    vi.stubGlobal("fetch", fetch);
+  it("normalizes weather, aqi and forecast for a locality, tagged with its state", async () => {
+    vi.stubGlobal("fetch", stubOpenMeteo());
+    const observations = await new OpenMeteoAdapter(ONE_LOCALITY).poll();
 
-    const observations = await new OpenMeteoAdapter().poll();
-
-    expect(fetch).toHaveBeenCalledTimes(9); // weather + aqi + forecast per city x 3
-
-    const weather = observations.filter((o) => o.kind === "weather");
-    const aqi = observations.filter((o) => o.kind === "aqi");
-    const forecast = observations.filter((o) => o.kind === "forecast");
-
-    expect(weather).toHaveLength(3);
-    expect(aqi).toHaveLength(3);
-    expect(forecast).toHaveLength(6); // 3 cities x 2 days
-
-    expect(weather[0]).toEqual({
-      source: "open-meteo",
-      station: "johor-bahru",
-      stationName: "Johor Bahru",
-      measuredAt: weatherResponse.current.time,
-      kind: "weather",
-      value: weatherResponse.current.temperature_2m,
-      meta: {
-        humidity: weatherResponse.current.relative_humidity_2m,
-        wind: weatherResponse.current.wind_speed_10m,
-        precipitation: weatherResponse.current.precipitation,
-      },
-    });
-    expect(aqi[0]).toEqual({
-      source: "open-meteo",
-      station: "johor-bahru",
-      stationName: "Johor Bahru",
-      measuredAt: airQualityResponse.current.time,
-      kind: "aqi",
-      value: airQualityResponse.current.us_aqi,
-      meta: {
-        pm2_5: airQualityResponse.current.pm2_5,
-        pm10: airQualityResponse.current.pm10,
-        uv: airQualityResponse.current.uv_index,
-      },
-    });
-    expect(forecast[0]).toMatchObject({
-      source: "open-meteo",
-      station: "johor-bahru",
-      kind: "forecast",
-      value: 31,
-      meta: { tmin: 24, tmax: 31, precip: 20, uv: 10, code: 1 },
-    });
-    expect(weather[1]?.station).toBe("batu-pahat");
-    expect(weather[2]?.station).toBe("muar");
+    expect(observations).toHaveLength(1 + 1 + 2); // weather + aqi + 2 forecast days
+    const [w, a, f1, f2] = observations;
+    expect(w).toMatchObject({ source: "open-meteo", station: "johor-bahru", kind: "weather", value: 30.2, meta: { state: "Johor", humidity: 78, wind: 5.4, precipitation: 0 } });
+    expect(a).toMatchObject({ kind: "aqi", value: 62, meta: { state: "Johor", pm2_5: 15.3, uv: 3 } });
+    expect(f1).toMatchObject({ kind: "forecast", value: 31, meta: { state: "Johor", tmin: 24, tmax: 31, precip: 20, code: 1 } });
+    expect(f2?.kind).toBe("forecast");
   });
 });

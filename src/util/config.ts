@@ -7,6 +7,11 @@ const schema = z.object({
   /** Comma-separated DOE state ids to poll; empty = all 16 states. */
   EQMS_STATES: z.string().default(""),
   POLL_SECONDS: z.coerce.number().int().positive().default(300),
+  /** Weather/Forecast changes slower than AQI — a lighter cadence keeps nationwide calls sane. */
+  POLL_OPENMETEO_SECONDS: z.coerce.number().int().positive().default(1800),
+  POLL_USGS_SECONDS: z.coerce.number().int().positive().default(600),
+  POLL_ONI_SECONDS: z.coerce.number().int().positive().default(86400),
+  POLL_MET_SECONDS: z.coerce.number().int().positive().default(900),
 });
 
 export type Config = z.infer<typeof schema>;

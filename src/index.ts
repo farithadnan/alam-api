@@ -10,7 +10,17 @@ const store = new Store(cfg.DB_PATH);
 const adapters = buildAdapters(cfg);
 
 const app = buildServer(store);
-const stop = startScheduler(store, adapters, () => cfg.POLL_SECONDS * 1000, (m) => app.log.info(m));
+const cadence = (id: string) =>
+  (
+    {
+      "doe-eqms": cfg.POLL_SECONDS * 1000,
+      "open-meteo": cfg.POLL_OPENMETEO_SECONDS * 1000,
+      "usgs-eq": cfg.POLL_USGS_SECONDS * 1000,
+      oni: cfg.POLL_ONI_SECONDS * 1000,
+      "my-met": cfg.POLL_MET_SECONDS * 1000,
+    } as Record<string, number>
+  )[id] ?? cfg.POLL_SECONDS * 1000;
+const stop = startScheduler(store, adapters, cadence, (m) => app.log.info(m));
 
 try {
   await app.listen({ host: "0.0.0.0", port: cfg.PORT });

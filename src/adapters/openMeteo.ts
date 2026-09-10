@@ -1,20 +1,7 @@
 import { fetchJson } from "../util/http.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
-
-interface City {
-  slug: string;
-  name: string;
-  lat: number;
-  lon: number;
-}
-
-/** Small fixed list of Johor cities to poll from Open-Meteo. */
-const JOHOR_CITIES: readonly City[] = [
-  { slug: "johor-bahru", name: "Johor Bahru", lat: 1.49, lon: 103.74 },
-  { slug: "batu-pahat", name: "Batu Pahat", lat: 1.8548, lon: 102.9325 },
-  { slug: "muar", name: "Muar", lat: 2.0442, lon: 102.5691 },
-];
+import { MALAYSIA_LOCALITIES, type Locality } from "../core/localities.js";
 
 interface CurrentData {
   temperature_2m: number;
@@ -51,54 +38,54 @@ const AIR_QUALITY_PARAMS = "pm2_5,pm10,us_aqi,uv_index";
 const FORECAST_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max";
 
 /**
- * Open-Meteo — free, key-less weather + air-quality + UV + 7-day daily forecast.
- * Emits per city: `weather` (current temp + humidity/wind/precip), `aqi`
- * (US scale + pollutants + UV), and one `forecast` per upcoming day.
+ * Open-Meteo — free, key-less weather + air-quality + UV + 7-day forecast for
+ * EVERY state's localities (national registry), each tagged meta.state so the
+ * dashboard can group by state. Polled on a slower cadence than AQI (30-60m).
  */
 export class OpenMeteoAdapter implements Adapter {
   readonly id = "open-meteo" as const;
 
+  constructor(private readonly localities: Locality[] = MALAYSIA_LOCALITIES) {}
+
   async poll(): Promise<Observation[]> {
-    const observations: Observation[] = [];
-    for (const city of JOHOR_CITIES) {
-      const [weather, air, forecast] = await Promise.all([
-        this.fetchWeather(city),
-        this.fetchAirQuality(city),
-        this.fetchForecast(city),
-      ]);
-      observations.push(
+    const out: Observation[] = [];
+    for (const loc of this.localities) {
+      try {
+        const [weather, air, forecast] = await Promise.all([
+          this.fetch<WeatherResponse>(WEATHER_URL, loc, `current=${WEATHER_PARAMS}`).then((d) => d.current),
+          this.fetch<AirQualityResponse>(AIR_QUALITY_URL, loc, `current=${AIR_QUALITY_PARAMS}`).then((d) => d.current),
+          this.fetch<ForecastResponse>(WEATHER_URL, loc, `daily=${FORECAST_PARAMS}&timezone=auto`).then((d) => d.daily),
+        ]);
+        out.push(
         {
           source: "open-meteo",
-          station: city.slug,
-          stationName: city.name,
+          station: loc.slug,
+          stationName: loc.name,
           measuredAt: weather.time,
           kind: "weather",
           value: weather.temperature_2m,
-          meta: {
-            humidity: weather.relative_humidity_2m,
-            wind: weather.wind_speed_10m,
-            precipitation: weather.precipitation,
-          },
+          meta: { state: loc.state, humidity: weather.relative_humidity_2m, wind: weather.wind_speed_10m, precipitation: weather.precipitation },
         },
         {
           source: "open-meteo",
-          station: city.slug,
-          stationName: city.name,
+          station: loc.slug,
+          stationName: loc.name,
           measuredAt: air.time,
           kind: "aqi",
           value: air.us_aqi,
-          meta: { pm2_5: air.pm2_5, pm10: air.pm10, uv: air.uv_index },
+          meta: { state: loc.state, pm2_5: air.pm2_5, pm10: air.pm10, uv: air.uv_index },
         },
       );
       for (let i = 0; i < forecast.time.length; i++) {
-        observations.push({
+        out.push({
           source: "open-meteo",
-          station: city.slug,
-          stationName: city.name,
+          station: loc.slug,
+          stationName: loc.name,
           measuredAt: new Date(`${forecast.time[i]}T12:00:00Z`).toISOString(),
           kind: "forecast",
           value: forecast.temperature_2m_max[i] ?? 0,
           meta: {
+            state: loc.state,
             tmin: forecast.temperature_2m_min[i] ?? null,
             tmax: forecast.temperature_2m_max[i] ?? null,
             precip: forecast.precipitation_probability_max[i] ?? null,
@@ -106,26 +93,16 @@ export class OpenMeteoAdapter implements Adapter {
             code: forecast.weather_code[i] ?? null,
           },
         });
+        }
+      } catch {
+        // skip a locality that failed to fetch; keep the rest of the country
       }
     }
-    return observations;
+    return out;
   }
 
-  private async fetchWeather(city: City): Promise<CurrentData> {
-    const url = `${WEATHER_URL}?latitude=${city.lat}&longitude=${city.lon}&current=${WEATHER_PARAMS}`;
-    const data = await fetchJson<WeatherResponse>(url);
-    return data.current;
-  }
-
-  private async fetchAirQuality(city: City): Promise<AirQualityCurrentData> {
-    const url = `${AIR_QUALITY_URL}?latitude=${city.lat}&longitude=${city.lon}&current=${AIR_QUALITY_PARAMS}`;
-    const data = await fetchJson<AirQualityResponse>(url);
-    return data.current;
-  }
-
-  private async fetchForecast(city: City): Promise<Daily> {
-    const url = `${WEATHER_URL}?latitude=${city.lat}&longitude=${city.lon}&daily=${FORECAST_PARAMS}&timezone=auto`;
-    const data = await fetchJson<ForecastResponse>(url);
-    return data.daily;
+  private async fetch<T>(base: string, loc: Locality, params: string): Promise<T> {
+    const url = `${base}?latitude=${loc.lat}&longitude=${loc.lon}&${params}`;
+    return fetchJson<T>(url);
   }
 }
