@@ -189,6 +189,46 @@ export class Store {
     return Number(res.changes ?? 0);
   }
 
+  /** Per-adapter poll bookkeeping, so the scheduler can skip fresh sources. */
+  sourceState(adapterId: string): { lastPollledAt: string | null; lastOkAt: string | null } {
+    const row = this.db
+      .prepare(`SELECT last_polled_at, last_ok_at FROM source_state WHERE adapter_id = ?`)
+      .get(adapterId) as { last_polled_at: string; last_ok_at: string | null } | undefined;
+    return { lastPollledAt: row?.last_polled_at ?? null, lastOkAt: row?.last_ok_at ?? null };
+  }
+
+  /** True when the source has no recorded poll, or its last poll is older than the interval. */
+  isStale(adapterId: string, intervalMs: number, now = Date.now()): boolean {
+    const { lastPollledAt } = this.sourceState(adapterId);
+    if (!lastPollledAt) return true;
+    const at = Date.parse(lastPollledAt);
+    return !Number.isFinite(at) || now - at >= intervalMs;
+  }
+
+  /** Record a poll attempt (success or failure). Stamped in Malaysia time, like the rest. */
+  recordPoll(adapterId: string, rows: number, error?: string): void {
+    const at = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 19);
+    this.db
+      .prepare(
+        `INSERT INTO source_state (adapter_id, last_polled_at, last_ok_at, last_error, last_rows)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(adapter_id) DO UPDATE SET
+           last_polled_at = excluded.last_polled_at,
+           last_ok_at = CASE WHEN excluded.last_error IS NULL THEN excluded.last_ok_at ELSE source_state.last_ok_at END,
+           last_error = excluded.last_error,
+           last_rows = excluded.last_rows`,
+      )
+      .run(adapterId, at, error ? null : at, error ?? null, rows);
+  }
+
+  /** Asserted MET district for a town slug (reference data; see migration 003). */
+  townDistrict(townSlug: string): string | null {
+    const row = this.db
+      .prepare(`SELECT district_name FROM town_districts WHERE town_slug = ?`)
+      .get(townSlug) as { district_name: string } | undefined;
+    return row?.district_name ?? null;
+  }
+
   close(): void {
     this.db.close();
   }

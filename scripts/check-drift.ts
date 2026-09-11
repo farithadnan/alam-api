@@ -13,7 +13,9 @@
 import { fetchJson } from "../src/util/http.js";
 import { MET_DISTRICTS } from "../src/core/metDistricts.js";
 import { MALAYSIA_LOCALITIES } from "../src/core/localities.js";
-import { districtOf } from "../src/core/townDistricts.js";
+import { districtFor } from "../src/core/townDistricts.js";
+import { Store } from "../src/store/db.js";
+import { loadConfig } from "../src/util/config.js";
 
 const FORECAST_URL = "https://api.data.gov.my/weather/forecast?limit=5000";
 
@@ -41,6 +43,7 @@ for (const r of rows) {
   if (id && name) live.set(id, name);
 }
 
+const store = new Store(loadConfig().DB_PATH);
 const problems: string[] = [];
 
 // 1. registry vs feed
@@ -55,10 +58,11 @@ for (const r of renamed) problems.push(`district renamed: ${r}`);
 
 // 2. crosswalk vs registry
 for (const l of MALAYSIA_LOCALITIES) {
-  const d = districtOf(l.slug);
+  const d = districtFor(l.slug, store.townDistrict(l.slug));
   if (!d) problems.push(`town unmapped: ${l.slug} — add it to data/town-districts.csv`);
 }
 
+store.close();
 console.log(`feed districts: ${[...live.keys()].filter((i) => i.startsWith("Ds")).length} | registry: ${Object.keys(MET_DISTRICTS).length} | towns: ${MALAYSIA_LOCALITIES.length}`);
 console.log(problems.length ? `DRIFT (${problems.length}):\n  ${problems.join("\n  ")}` : "no drift");
 process.exit(problems.length ? 1 : 0);

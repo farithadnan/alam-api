@@ -1,5 +1,5 @@
 
-import { districtOf } from "../core/townDistricts.js";import Fastify from "fastify";
+import { districtFor } from "../core/townDistricts.js";import Fastify from "fastify";
 import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
@@ -195,7 +195,7 @@ export function buildServer(store: Store) {
       return hit?.name ?? ALIAS[n] ?? v;
     };
     const state = q.state ? stateOf(q.state) : null;
-    const townDistrict = districtOf(q.town); // a town slug -> its MET district
+    const townDistrict = districtFor(q.town, q.town ? store.townDistrict(q.town) : null);
     const rows = store.metForecast().map((r) => ({
       district: r.stationName,
       state: (r.meta?.state as string) ?? null,

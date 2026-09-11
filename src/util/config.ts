@@ -35,3 +35,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   return parsed.data;
 }
+
+/** Per-adapter poll interval in ms. One definition, used by the server and the CLI. */
+export const cadenceFor = (cfg: ReturnType<typeof loadConfig>) => (id: string): number =>
+  ({
+    "doe-eqms": cfg.POLL_SECONDS * 1000,
+    "open-meteo": cfg.POLL_OPENMETEO_SECONDS * 1000,
+    "usgs-eq": cfg.POLL_USGS_SECONDS * 1000,
+    oni: cfg.POLL_ONI_SECONDS * 1000,
+    "my-met": cfg.POLL_MET_SECONDS * 1000,
+    "my-met-forecast": cfg.POLL_METFC_SECONDS * 1000,
+    news: cfg.POLL_NEWS_SECONDS * 1000,
+  })[id] ?? cfg.POLL_SECONDS * 1000;

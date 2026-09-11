@@ -1,4 +1,4 @@
-import { loadConfig } from "./util/config.js";
+import { loadConfig, cadenceFor } from "./util/config.js";
 import { Store } from "./store/db.js";
 import { buildAdapters, resolveStates } from "./adapters/registry.js";
 import { DoeEqmsAdapter } from "./adapters/doeEqms.js";
@@ -36,8 +36,16 @@ try {
     const days = Math.min(Math.max(Number(process.argv[3] ?? 7) || 7, 1), 30);
     await backfill(days);
   } else {
+    // Respect the poll intervals by default: re-polling everything on every run is
+    // what hammered the free upstreams. `npm run ingest -- --force` overrides.
+    const force = process.argv.includes("--force");
+    const cadence = cadenceFor(cfg);
     for (const adapter of buildAdapters(cfg)) {
-      await ingestOnce(store, adapter, log);
+      if (!force && !store.isStale(adapter.id, cadence(adapter.id))) {
+        log(`[${adapter.id}] fresh, skipped (use --force)`);
+        continue;
+      }
+      await ingestOnce(store, adapter, log, false);
     }
     log("--- latest per source ---");
     const sources = store.stations().reduce<string[]>((acc, s) => (acc.includes(s.source) ? acc : [...acc, s.source]), []);
