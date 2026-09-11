@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.5"
   },
   "description": "Air-quality & environmental hazards ingest + read API for Malaysia (Johor first). Sources: DOE eqms, Open-Meteo, USGS, NOAA ONI.",
   "scripts": {
@@ -15,7 +15,6 @@
     "backfill": "tsx src/cli.ts backfill",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "crosswalk": "tsx scripts/build-crosswalk.ts",
     "check:drift": "tsx scripts/check-drift.ts"
   },
   "dependencies": {

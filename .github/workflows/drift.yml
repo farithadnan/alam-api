@@ -1,0 +1,23 @@
+name: drift
+
+# Compares the district registry and the town crosswalk against the live MET feed.
+# Exit codes: 0 no drift, 1 drift found, 2 could not check.
+# A failure here means MET changed something we should follow up on.
+on:
+  schedule:
+    - cron: "0 2 * * *" # 10:00 Malaysia time
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run check:drift

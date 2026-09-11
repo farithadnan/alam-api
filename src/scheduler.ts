@@ -3,6 +3,25 @@ import type { Adapter } from "./adapters/types.js";
 
 type Log = (msg: string) => void;
 
+/** How many adapters may poll at once. Cross-host parallelism; same host stays queued. */
+const POLL_CONCURRENCY = 4;
+
+/**
+ * Bounded concurrency: at most `limit` tasks at once, results in input order.
+ * Used for the poll cycle so different hosts are fetched in parallel while the
+ * fetch layer keeps same-host calls serialised. A cold start used to take minutes
+ * because every adapter waited for the one before it.
+ */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (let i = next++; i < items.length; i = next++) out[i] = await fn(items[i] as T);
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 /**
  * Polls every adapter on its own interval. Overlapping runs for the same adapter
  * are skipped (no concurrent poll of one source). Failures are logged and the
@@ -18,6 +37,7 @@ export function startScheduler(
   intervalMs: (id: string) => number,
   log: Log,
   pruneDays = 90,
+  concurrency = POLL_CONCURRENCY,
 ): () => void {
   const inFlight = new Set<string>();
 
@@ -43,9 +63,11 @@ export function startScheduler(
   }
 
   async function runAll() {
-    let polled = 0;
-    for (const a of adapters) if (await runOnce(a)) polled++;
+    const started = Date.now();
+    const results = await mapLimit(adapters, concurrency, (a) => runOnce(a));
+    const polled = results.filter(Boolean).length;
     if (polled < adapters.length) log(`[scheduler] ${adapters.length - polled} source(s) still fresh, skipped`);
+    log(`[scheduler] cycle done: ${polled} polled in ${Date.now() - started}ms`);
     store.pruneOlderThan(pruneDays);
   }
 

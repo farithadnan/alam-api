@@ -1,77 +1,133 @@
 # alam-api
 
-Air-quality & environmental-hazards **ingest + read API** for Malaysia, Johor first.
-A clean dashboard (repo: `udara-dashboard`) reads this API to present what the official APIMS site shows awkwardly.
+Air-quality and environmental-hazards **ingest + read API** for Malaysia: AQI
+(DOE APIMS), weather and forecasts (Open-Meteo), the official MET Malaysia
+district forecast and warnings, earthquakes (USGS), El Nino phase (NOAA ONI), and
+Malaysian news. Nationwide: 16 states, 68 air stations, 108 localities.
+
+The dashboard (repo: `alam-dashboard`) reads this API. Clients never talk to the
+upstreams directly.
 
 ## Stack
 
-- **Node 24 + TypeScript** (strict)
+- **Node 24 + TypeScript** (strict). `node:sqlite` requires Node 22.5+.
 - **Fastify** HTTP API (+ `@fastify/cors`)
-- **zod** — config + validation
-- **`node:sqlite`** (native, zero-dep) — polled snapshot store
-- native `fetch` with timeout + exponential-backoff retries
-- **vitest** — unit tests
+- **zod** for config and validation
+- **`node:sqlite`** (native, zero dependency) snapshot store
+- native `fetch`, wrapped in one retry/politeness layer
+- **vitest** for tests (53, all offline except the drift check)
 
-## Architecture (clean, layered)
+## Architecture
 
 ```
 src/
-  adapters/   one file per data source, each implements `Adapter`  (Open/Closed: add a source = add one file)
-  core/       domain types + AQI band logic (pure, no I/O)
-  store/      sqlite schema + versioned migrations + repository (the only place SQL lives)
-  http/       Fastify routes (the only place HTTP concerns live)
-  util/       config (zod), fetch-with-retry
-  scheduler.ts  polls adapters -> ingest -> store, on staggered intervals
-  cli.ts        one-shot ingest (for cron/tests)
+  adapters/   one file per source, each implements `Adapter`; add a source = add one file
+  core/       domain types, AQI bands, localities, states,
+              metDistricts (170 MET districts + their states),
+              townDistricts (resolves a town to its district)
+  store/      schema, versioned migrations, the only place SQL lives
+  http/       Fastify routes, the only place HTTP concerns live
+  util/       config, text, fetch layer
+  scheduler.ts  interval polling + freshness bookkeeping
+  cli.ts        one-shot ingest (tests, cron, local refresh)
   index.ts      boot: store -> server -> scheduler -> graceful shutdown
-
-test/           vitest suites mirrored under core/, adapters/, store/ (offline, mock fetch)
 ```
 
-- **Data fetching**: every source produces normalized `Observation`s through one `Adapter` contract — DRY, and the rest of the system never knows a specific source exists.
-- **Data management**: we **store** polled snapshots. The store is append-only and idempotent
-  (`UNIQUE(source, station, measured_at)` + `INSERT OR IGNORE`), which gives us history/trends,
-  resilience (serve last-known if an upstream blips), and keeps third-party API load low.
-  Reads always come from SQLite. History is pruned after 90 days.
+Two rules the code sticks to:
+
+- **One adapter contract.** Every source normalises into `Observation`, so nothing
+  downstream knows which source a row came from.
+- **Reads come from SQLite, always.** No request handler calls an upstream. If a
+  source is down, the last good data keeps serving.
+
+## Data strategy
+
+Polling is owned solely by the scheduler. Each adapter has its own interval and its
+last poll is recorded in SQLite, so a restart does not re-fetch anything still fresh.
+
+| Source | Interval | Notes |
+| --- | --- | --- |
+| DOE APIMS air quality | 5 min | 16 state calls + the ArcGIS station layer (exact coords, category, PM10) |
+| Open-Meteo weather + AQI | 30 min | 108 localities, weather + hourly + 7-day + US AQI + UV |
+| USGS earthquakes | 10 min | 7-day SE-Asia feed, M4.5+ |
+| MET warnings | 15 min | land warnings |
+| MET district forecast | 6 h | 170 districts x 7 days, official text |
+| News | 30 min | RSS (Free Malaysia Today, NST, Utusan) + optional newsdata.io |
+| NOAA ONI | 24 h | El Nino / La Nina phase |
+
+Writes are append-only and idempotent (`UNIQUE(source, station, measured_at, kind)`
+with `INSERT OR IGNORE`), which yields history for trends, resilience to upstream
+blips, and low load on free third-party APIs. History is pruned after 90 days.
+
+The MET district registry and the town crosswalk are **reference data in SQLite**
+(`migrations/003_town_districts.sql`), not generated files. Rows whose town name
+already matches the district are derived at read time; only genuine exceptions
+(a city named differently from its district) are stored, each with a source and an
+asserted date.
+
+## Upstream politeness
+
+All upstream calls go through one layer (`src/util/http.ts`) that:
+
+- retries only transient failures (network, timeout, 408/425/429/5xx); other 4xx fail fast
+- honours `Retry-After` on 429
+- backs off exponentially with full jitter, so adapters do not retry in lockstep
+- serialises calls per host with a minimum gap, so no adapter can burst
+- sends a descriptive User-Agent
+
+This matters: these are free public APIs and the honest way to use them is to not
+hammer them.
 
 ## Run
 
 ```bash
 npm install
-cp .env.example .env        # tweak ports/poll intervals
+cp .env.example .env
 npm run dev                 # server + scheduler
-npm run ingest              # one-shot ingest, prints current stations
+npm run ingest              # one-shot, respects intervals
+npm run ingest -- --force   # ignore intervals, re-poll everything
 npm test
+npm run typecheck
+npm run check:drift         # registry vs the live MET feed
 ```
 
-### API
+## API
+
+`/api` is a self-describing index; `/v1` is an alias. Rate limit: 120 requests/min
+per IP, with `x-ratelimit-*` headers.
 
 | Route | Purpose |
 | --- | --- |
 | `GET /health` | liveness |
-| `GET /api/stations` | distinct sources/stations |
-| `GET /api/current?source=doe-eqms` | latest reading per station + AQI band |
+| `GET /api` (or `/v1`) | endpoint index |
+| `GET /api/current?source=doe-eqms` | latest reading per station + band |
 | `GET /api/history?source=&station=&hours=` | time series |
-| `GET /api/hazards` | earthquakes + climate (coming) |
+| `GET /api/forecast?state=` | model forecast |
+| `GET /api/stations` | distinct sources/stations |
+| `GET /api/hazards` | earthquakes, climate, warnings |
+| `GET /api/summary?state=&town=&towns=` | one bundle for the dashboard, scoped to a town |
+| `GET /api/official?state=&town=&district=` | MET district forecast; `town` resolves the district for you |
+| `GET /api/news` | recent Malaysian weather/hazard news |
 
-## Status / roadmap
+`/api/summary` is town-scoped on purpose: fetching every town's hourly and forecast
+series cost 1.09 MB, versus 133 KB scoped.
 
-Done:
-- [x] Skeleton, streaming zero-dep store, Fastify read API, scheduler
-- [x] **doe-eqms** adapter — Malaysia DOE APIMS, real-time per-station AQI, Johor (stateid 1)
+## Tests and quality gates
 
-Issues queue (implemented as issues on the repos):
-- [ ] **open-meteo** adapter — weather (temp/humidity/wind/precip) + air quality + UV (free, no key)
-- [ ] **usgs-eq** adapter — SE-Asia earthquake feed
-- [ ] **oni** adapter — El Niño / La Niña phase (parsed NOAA index)
-- [x] Real HTTP/data tests + a migration strategy (proper schema versioning)
-- [ ] `/api/hazards` responses wired to stored quake + climate data
-- [ ] `udara-dashboard` frontend repo (mobile-first, list-based)
-- [ ] `udara-notifier` (Telegram) — Unhealthy-AQI + quake/tsunami push alerts
+- `ci.yml` runs typecheck + tests on push and pull request.
+- `drift.yml` runs `check:drift` nightly: it compares the district registry and the
+  town crosswalk against the live MET feed and fails on drift (exit 1) or on being
+  unable to check (exit 2, so a rate-limited feed never looks like success).
+- Tests enforce referential integrity: every locality must resolve to a district in
+  its own state, or the suite fails.
 
 ## Notes
 
-- DOE `eqms` returns timestamps in **Malaysia local time (UTC+08)**; stored as returned.
-- **Two different AQI scales collide**: Open-Meteo's `us_aqi` is the US 500-pt scale, while DOE `eqms` is the Malaysia APIMS index (different ranges/bands). The `aqiBand` helper classifies the **Malaysia** scale — the dashboard must not apply the Malaysian bands to Open-Meteo's US AQI without relabeling or converting.
-- Old blog note: this service is portable — runs on GitHub Actions (cron) or any Node host,
-  so the 1-month VPS tryout doesn't lock it in.
+- DOE timestamps are Malaysia time (UTC+08) and stored as returned.
+- **Two AQI scales collide.** Open-Meteo's `us_aqi` is the US 500-point scale; DOE is
+  the Malaysia APIMS index. `aqiBand` classifies the Malaysian scale only, so US AQI
+  must never be labelled with Malaysian bands.
+- No free API exists for river or marine water quality, or for MET observations
+  (current conditions come from Open-Meteo).
+- Portable by design: runs on any Node host or a cron runner, so nothing depends on
+  the current VPS.
