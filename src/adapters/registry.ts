@@ -22,6 +22,6 @@ export function buildAdapters(cfg: Config): Adapter[] {
     new UsgsEqAdapter(),
     new OniAdapter(),
     new MetWarningsAdapter(),
-    new NewsAdapter(),
+    new NewsAdapter(cfg.NEWSDATA_API_KEY),
   ];
 }

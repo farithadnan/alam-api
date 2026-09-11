@@ -13,11 +13,20 @@ const schema = z.object({
   POLL_ONI_SECONDS: z.coerce.number().int().positive().default(86400),
   POLL_MET_SECONDS: z.coerce.number().int().positive().default(900),
   POLL_NEWS_SECONDS: z.coerce.number().int().positive().default(1800),
+  /** newsdata.io key (optional). Without it the news feed falls back to free Malaysian RSS. */
+  NEWSDATA_API_KEY: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  // Load a local .env (Node's built-in loader) so secrets stay out of the shell
+  // history and out of git. Absent file is fine.
+  try {
+    process.loadEnvFile?.();
+  } catch {
+    /* no .env present */
+  }
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     throw new Error(`Invalid config:\n${parsed.error.toString()}`);
