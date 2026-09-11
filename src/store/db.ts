@@ -205,9 +205,15 @@ export class Store {
     return !Number.isFinite(at) || now - at >= intervalMs;
   }
 
-  /** Record a poll attempt (success or failure). Stamped in Malaysia time, like the rest. */
+  /**
+   * Record a poll attempt (success or failure).
+   *
+   * Stored as canonical UTC (with Z), unlike the observation timestamps which are
+   * Malaysia local time for display. Freshness is machine timing compared against
+   * the epoch, so shifting it would make the result depend on the host timezone.
+   */
   recordPoll(adapterId: string, rows: number, error?: string): void {
-    const at = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 19);
+    const at = new Date().toISOString();
     this.db
       .prepare(
         `INSERT INTO source_state (adapter_id, last_polled_at, last_ok_at, last_error, last_rows)

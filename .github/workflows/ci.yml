@@ -20,4 +20,10 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+
+      - name: Test
+        # Pin the timezone: freshness/age logic must not depend on the host timezone,
+        # and this makes local and CI agree instead of the suite passing on UTC+8 only.
+        env:
+          TZ: UTC
+        run: npm test
