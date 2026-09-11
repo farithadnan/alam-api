@@ -3,6 +3,7 @@ import { districtFor } from "../core/townDistricts.js";import Fastify from "fast
 import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
+import { WHO_PM25_24H } from "../core/haze.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
 import { MALAYSIA_STATES } from "../core/states.js";
 import { MY_OFFSET_MS, LATEST_LIMIT, NEWS_LIMIT, QUAKE_LIMIT } from "../core/constants.js";
@@ -138,7 +139,11 @@ export function buildServer(store: Store) {
           : stationCoords(s.stationName, s.meta?.state as string | null | undefined),
       trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
     }));
-    const weather = inState(store.latestBySource("open-meteo")).map((r) => {
+    // Haze has its own endpoint, so it is kept out of this bundle (the client filters
+    // by kind anyway; this keeps the payload honest about what each row is).
+    const weather = inState(store.latestBySource("open-meteo"))
+      .filter((r) => r.kind !== "haze")
+      .map((r) => {
       const loc = MALAYSIA_LOCALITIES.find((l) => l.slug === r.station);
       return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
     });
@@ -226,6 +231,26 @@ export function buildServer(store: Store) {
       publishedAt: n.measuredAt,
     })),
   }));
+
+  /**
+   * Model haze outlook: daily peak PM2.5 per locality from the Open-Meteo air-quality
+   * series. Model data, so it is reported as concentrations and compared against the
+   * WHO 24-hour guideline, never labelled with the official Malaysian AQI bands.
+   */
+  app.get("/api/haze", async (req) => {
+    const q = req.query as { town?: string; state?: string };
+    const rows = q.town ? store.hazeFor(q.town) : store.latestByKind("haze", 600);
+    const scoped = q.state ? rows.filter((r) => r.meta?.state === q.state) : rows;
+    return {
+      town: q.town ?? null,
+      haze: scoped.map((r) => ({
+        date: r.measuredAt.slice(0, 10),
+        pm25Max: r.value,
+        pm25Avg: (r.meta?.avg as number) ?? null,
+        aboveGuideline: r.value > WHO_PM25_24H,
+      })),
+    };
+  });
 
   return app;
 }

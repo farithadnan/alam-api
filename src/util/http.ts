@@ -11,8 +11,12 @@ const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const BASE_DELAY_MS = 500;
 const MAX_DELAY_MS = 30_000;
-/** Minimum gap between requests to the same host, so adapters cannot burst at it. */
-const HOST_GAP_MS = 300;
+/**
+ * Minimum gap between requests to the same host, so adapters cannot burst at it.
+ * Overridable because it is pure politeness: with 16 same-host calls it adds ~5s,
+ * which tests should not pay for.
+ */
+const HOST_GAP_MS = Number(process.env.HTTP_HOST_GAP_MS ?? 300);
 const USER_AGENT = "alam-api/1.0 (+https://github.com/farithadnan/alam-api)";
 
 /** Exponential backoff with full jitter, so parallel adapters do not stampede. */

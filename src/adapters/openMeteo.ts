@@ -2,6 +2,7 @@ import { fetchJson } from "../util/http.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
 import { MALAYSIA_LOCALITIES, type Locality } from "../core/localities.js";
+import { dailyPm25, type Pm25Series } from "../core/haze.js";
 
 interface CurrentData {
   temperature_2m: number;
@@ -47,6 +48,9 @@ const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const WEATHER_PARAMS = "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,precipitation,apparent_temperature,weather_code,pressure_msl,visibility,dew_point_2m";
 const AIR_QUALITY_PARAMS = "pm2_5,pm10,us_aqi,uv_index";
+
+/** Days of hourly PM2.5 fetched to build the haze outlook. */
+const HAZE_DAYS = 4;
 const FORECAST_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max";
 const HOURLY_PARAMS = "temperature_2m,precipitation_probability,weather_code";
 
@@ -64,9 +68,13 @@ export class OpenMeteoAdapter implements Adapter {
     const out: Observation[] = [];
     for (const loc of this.localities) {
       try {
-        const [wx, air, fc] = await Promise.all([
+        const [wx, airQ, fc] = await Promise.all([
           this.fetch<WeatherResponse>(WEATHER_URL, loc, `current=${WEATHER_PARAMS}&daily=sunrise,sunset&timezone=auto`),
-          this.fetch<AirQualityResponse>(AIR_QUALITY_URL, loc, `current=${AIR_QUALITY_PARAMS}`).then((d) => d.current),
+          this.fetch<AirQualityResponse & { hourly?: Pm25Series }>(
+            AIR_QUALITY_URL,
+            loc,
+            `current=${AIR_QUALITY_PARAMS}&hourly=pm2_5&forecast_days=${HAZE_DAYS}&timezone=auto`,
+          ),
           this.fetch<ForecastResponse>(WEATHER_URL, loc, `daily=${FORECAST_PARAMS}&hourly=${HOURLY_PARAMS}&forecast_hours=24&forecast_days=10&timezone=auto`),
         ]);
         const weather = wx.current;
@@ -86,12 +94,25 @@ export class OpenMeteoAdapter implements Adapter {
           source: "open-meteo",
           station: loc.slug,
           stationName: loc.name,
-          measuredAt: air.time,
+          measuredAt: airQ.current.time,
           kind: "aqi",
-          value: air.us_aqi,
-          meta: { state: loc.state, pm2_5: air.pm2_5, pm10: air.pm10, uv: air.uv_index },
+          value: airQ.current.us_aqi,
+          meta: { state: loc.state, pm2_5: airQ.current.pm2_5, pm10: airQ.current.pm10, uv: airQ.current.uv_index },
         },
       );
+      // Haze outlook: one row per day, the day's peak PM2.5. Model data, not the
+      // official APIMS index, so it is compared against the WHO guideline instead.
+      for (const day of dailyPm25(airQ.hourly ?? {})) {
+        out.push({
+          source: "open-meteo",
+          station: loc.slug,
+          stationName: loc.name,
+          measuredAt: `${day.date}T00:00:00`,
+          kind: "haze",
+          value: day.pm25Max,
+          meta: { state: loc.state, avg: day.pm25Avg, hours: day.hours },
+        });
+      }
       for (let i = 0; i < forecast.time.length; i++) {
         out.push({
           source: "open-meteo",

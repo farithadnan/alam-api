@@ -37,6 +37,15 @@ const series = (kind: "hourly" | "forecast", slug: string, name: string, state: 
     meta: { state, code: "3", precip: 10, tmax: 32, tmin: 25 },
   }));
 /** A MET district row. `state` is null for non-district locations (towns etc.). */
+const haze = (slug: string, date: string, pm25: number): Observation => ({
+  source: "open-meteo",
+  station: slug,
+  stationName: slug,
+  measuredAt: `${date}T00:00:00`,
+  kind: "haze",
+  value: pm25,
+  meta: { state: "Perlis", avg: pm25 - 5, hours: 24 },
+});
 const district = (name: string, summary: string, state: string | null = null): Observation => ({
   source: "my-met-forecast",
   station: name.toLowerCase(),
@@ -59,6 +68,8 @@ function seed(): Store {
     ...series("hourly", "kangar", "Kangar", "Perlis"),
     ...series("forecast", "arau", "Arau", "Perlis"),
     ...series("forecast", "kangar", "Kangar", "Perlis"),
+    haze("arau", "2026-09-12", 42.5),
+    haze("arau", "2026-09-11", 18),
     district("Langkawi", "Ribut petir", "Kedah"),
     district("Kulim", "Tiada Hujan", "Kedah"),
     district("Perlis", "Hujan di beberapa tempat", "Perlis"),
@@ -148,5 +159,21 @@ describe("GET /api/official — MET districts resolved via MET's own registry", 
     const { body } = await get("/api/official?state=penang");
     expect(body.official.length).toBeGreaterThan(0);
     expect(body.official.every((r: { state: string }) => r.state === "Pulau Pinang")).toBe(true);
+  });
+});
+
+describe("GET /api/haze — model haze outlook", () => {
+  it("returns the town's daily peak PM2.5, soonest first, flagged against the WHO guideline", async () => {
+    const { body } = await get("/api/haze?town=arau");
+    expect(body.town).toBe("arau");
+    expect(body.haze).toHaveLength(2);
+    expect(body.haze[0]).toMatchObject({ date: "2026-09-11", pm25Max: 18, aboveGuideline: true });
+    expect(body.haze[1]).toMatchObject({ date: "2026-09-12", pm25Max: 42.5, aboveGuideline: true });
+  });
+
+  it("filters by state, and returns nothing for a town with no outlook", async () => {
+    expect((await get("/api/haze?state=Perlis")).body.haze).toHaveLength(2);
+    expect((await get("/api/haze?state=Kedah")).body.haze).toHaveLength(0);
+    expect((await get("/api/haze?town=langkawi")).body.haze).toHaveLength(0);
   });
 });
