@@ -1,19 +1,21 @@
 /**
- * MET Malaysia district registry — location_id -> district name + state.
+ * MET Malaysia district registry - location_id -> district name + state.
  *
- * Source: MET's own district selector (https://www.met.gov.my/en/forecast/weather/district),
- * whose <optgroup label="State"> groups match the location_id values in the
- * api.data.gov.my weather feed exactly. Generated data; do not hand-edit.
+ * States come from MET's own district selector (met.gov.my), whose
+ * <optgroup label=State> groups match the feed's location_id exactly.
+ * Names come from the api.data.gov.my feed itself, so they always match
+ * the rows we store (MET's English site names some districts differently,
+ * e.g. Northeast Penang Island vs the feed's Timur Laut).
  *
- * NOTE: only MET district locations ("Ds…") are listed. The feed also carries
- * towns ("Tn…"), state rows ("St…"), recreational sites ("Rc…") and Sarawak
- * divisions ("Dv…") — those are NOT districts and must never be presented as
- * one, which is the bug this registry exists to prevent.
+ * Only district locations are listed. The feed also carries towns (Tn),
+ * state rows (St), recreational sites (Rc) and Sarawak divisions (Dv) -
+ * those are not districts and must never be presented as one.
+ *
+ * Generated data; do not hand-edit.
  */
 
 /** [district name, state] keyed by MET location_id. */
 export const MET_DISTRICTS: Record<string, [string, string]> = {
-  Ds058: ["Kuala Lumpur", "WP Kuala Lumpur"],
   Ds001: ["Langkawi", "Kedah"],
   Ds002: ["Perlis", "Perlis"],
   Ds003: ["Kubang Pasu", "Kedah"],
@@ -24,16 +26,16 @@ export const MET_DISTRICTS: Record<string, [string, string]> = {
   Ds008: ["Pendang", "Kedah"],
   Ds009: ["Kuala Muda", "Kedah"],
   Ds010: ["Sik", "Kedah"],
-  Ds011: ["Southwest Penang Island", "Pulau Pinang"],
-  Ds012: ["Northeast Penang Island", "Pulau Pinang"],
-  Ds013: ["North Seberang Perai", "Pulau Pinang"],
-  Ds014: ["Central Seberang Perai", "Pulau Pinang"],
+  Ds011: ["Barat Daya", "Pulau Pinang"],
+  Ds012: ["Timur Laut", "Pulau Pinang"],
+  Ds013: ["Seberang Perai Utara", "Pulau Pinang"],
+  Ds014: ["Seberang Perai Tengah", "Pulau Pinang"],
   Ds015: ["Baling", "Kedah"],
   Ds016: ["Kulim", "Kedah"],
-  Ds017: ["South Seberang Perai", "Pulau Pinang"],
+  Ds017: ["Seberang Perai Selatan", "Pulau Pinang"],
   Ds018: ["Bandar Baharu", "Kedah"],
   Ds019: ["Kerian", "Perak"],
-  Ds020: ["Larut, Matang and Selama", "Perak"],
+  Ds020: ["Larut, Matang Dan Selama", "Perak"],
   Ds021: ["Hulu Perak", "Perak"],
   Ds022: ["Tumpat", "Kelantan"],
   Ds023: ["Pasir Mas", "Kelantan"],
@@ -51,7 +53,7 @@ export const MET_DISTRICTS: Record<string, [string, string]> = {
   Ds035: ["Kampar", "Perak"],
   Ds036: ["Bagan Datuk", "Perak"],
   Ds037: ["Besut", "Terengganu"],
-  Ds038: ["Cameron Highlands", "Pahang"],
+  Ds038: ["Tanah Tinggi Cameron", "Pahang"],
   Ds039: ["Gua Musang", "Kelantan"],
   Ds040: ["Hilir Perak", "Perak"],
   Ds041: ["Batang Padang", "Perak"],
@@ -71,6 +73,7 @@ export const MET_DISTRICTS: Record<string, [string, string]> = {
   Ds055: ["Gombak", "Selangor"],
   Ds056: ["Dungun", "Terengganu"],
   Ds057: ["Petaling", "Selangor"],
+  Ds058: ["Kuala Lumpur", "WP Kuala Lumpur"],
   Ds059: ["Bentong", "Pahang"],
   Ds060: ["Kuala Langat", "Selangor"],
   Ds061: ["Temerloh", "Pahang"],
@@ -90,7 +93,7 @@ export const MET_DISTRICTS: Record<string, [string, string]> = {
   Ds075: ["Alor Gajah", "Melaka"],
   Ds076: ["Pekan", "Pahang"],
   Ds077: ["Tampin", "Negeri Sembilan"],
-  Ds078: ["Central Melaka", "Melaka"],
+  Ds078: ["Melaka Tengah", "Melaka"],
   Ds079: ["Jasin", "Melaka"],
   Ds080: ["Rompin", "Pahang"],
   Ds081: ["Tangkak", "Johor"],
@@ -196,7 +199,13 @@ export function isDistrict(id?: string | null): boolean {
   return !!id && id in MET_DISTRICTS;
 }
 
-/** All districts for a state, in MET's own order. */
+/** District name for a MET location id, or null. */
+export function districtName(id?: string | null): string | null {
+  if (!id) return null;
+  return MET_DISTRICTS[id]?.[0] ?? null;
+}
+
+/** All districts for a state, sorted by name. */
 export function districtsOf(state: string): { id: string; name: string }[] {
   return Object.entries(MET_DISTRICTS)
     .filter(([, [, st]]) => st === state)

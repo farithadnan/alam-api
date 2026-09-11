@@ -1,4 +1,5 @@
-import Fastify from "fastify";
+
+import { districtOf } from "../core/townDistricts.js";import Fastify from "fastify";
 import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
@@ -179,7 +180,7 @@ export function buildServer(store: Store) {
 
   /** MET Malaysia's official district forecast (district -> state from MET's own registry). */
   app.get("/api/official", async (req) => {
-    const q = req.query as { state?: string; district?: string };
+    const q = req.query as { state?: string; district?: string; town?: string };
     const ALIAS: Record<string, string> = {
       penang: "Pulau Pinang", "pulau pinang": "Pulau Pinang",
       "kuala lumpur": "WP Kuala Lumpur", kl: "WP Kuala Lumpur",
@@ -194,6 +195,7 @@ export function buildServer(store: Store) {
       return hit?.name ?? ALIAS[n] ?? v;
     };
     const state = q.state ? stateOf(q.state) : null;
+    const townDistrict = districtOf(q.town); // a town slug -> its MET district
     const rows = store.metForecast().map((r) => ({
       district: r.stationName,
       state: (r.meta?.state as string) ?? null,
@@ -204,9 +206,16 @@ export function buildServer(store: Store) {
       tmax: (r.meta?.tmax as number) ?? null,
     }));
     const filtered = rows.filter(
-      (r) => (!state || r.state === state) && (!q.district || r.district.toLowerCase() === q.district.toLowerCase()),
+      (r) =>
+        (!state || r.state === state) &&
+        (!townDistrict || r.district === townDistrict) &&
+        (!q.district || r.district.toLowerCase() === q.district.toLowerCase()),
     );
-    return { official: filtered, districts: [...new Set(rows.map((r) => r.district))] };
+    return {
+      district: townDistrict ?? q.district ?? null,
+      official: filtered,
+      districts: [...new Set(rows.map((r) => r.district))],
+    };
   });
 
   app.get("/api/news", async () => ({
