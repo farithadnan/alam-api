@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
 import { WHO_PM25_24H } from "../core/haze.js";
+import { groupWarnings } from "../core/warnings.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
 import { MALAYSIA_STATES } from "../core/states.js";
 import { MY_OFFSET_MS, LATEST_LIMIT, NEWS_LIMIT, QUAKE_LIMIT } from "../core/constants.js";
@@ -152,7 +153,7 @@ export function buildServer(store: Store) {
     const forecast = byTown(inState(store.forecast("open-meteo")));
     const hourly = byTown(inState(store.hourly("open-meteo")));
     const earthquakes = store.latestByKind("quake", QUAKE_LIMIT).map(quakeView);
-    const warnings = store.latestByKind("warning", LATEST_LIMIT).map(warningView);
+    const warnings = groupWarnings(store.latestByKind("warning", LATEST_LIMIT).map(warningView));
     const news = (() => {
       const seen = new Set<string>();
       const out: { title: string; url: string | null; outlet: string | null; publishedAt: string }[] = [];
@@ -179,7 +180,7 @@ export function buildServer(store: Store) {
   app.get("/api/hazards", async () => {
     const earthquakes = store.latestByKind("quake", QUAKE_LIMIT).map(quakeView);
     const climate = store.latestBySource("oni")[0] ?? null;
-    const warnings = store.latestByKind("warning", LATEST_LIMIT).map(warningView);
+    const warnings = groupWarnings(store.latestByKind("warning", LATEST_LIMIT).map(warningView));
     return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
   });
 

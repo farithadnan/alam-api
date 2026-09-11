@@ -3,9 +3,13 @@ import { slug } from "../util/text.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
 
-/** Weather/hazard relevance filter — keeps the feed useful rather than generic news. */
+/**
+ * Hazard allowlist for the feed. Deliberately narrow: bare "rain", "weather" and
+ * "storm" are common in sport and lifestyle headlines ("Rain fails to stop the
+ * Malaysia Open"), so only specific hazard terms count.
+ */
 const KEYWORDS =
-  /\b(flood|floods|flooding|haze|hazy|weather|storm|storms|thunderstorm|thunderstorms|rain|rainfall|monsoon|drought|heatwave|heat wave|earthquake|quake|tsunami|landslide|typhoon|cyclone|aqi|air quality|el niño|el nino|la niña|la nina|banjir|hujan|jerebu|cuaca|ribut|gempa|kemarau|kabus)\b/i;
+  /\b(flood|floods|flooding|flash flood|haze|hazy|jerebu|banjir|thunderstorm|thunderstorms|ribut petir|monsoon|drought|kemarau|heatwave|heat wave|earthquake|quake|gempa|tsunami|landslide|tanah runtuh|mudslide|typhoon|cyclone|aqi|air quality|air pollution|el niño|el nino|la niña|la nina|heavy rain|hujan lebat|weather warning|amaran cuaca|severe weather|api|kabus)\b/i;
 
 interface Feed {
   outlet: string;
@@ -42,8 +46,21 @@ interface NewsdataResponse {
   results?: NewsdataItem[];
 }
 
-function relevance(text: string): boolean {
-  return KEYWORDS.test(text);
+/**
+ * Words that signal sport, entertainment or business even when a hazard word is
+ * present ("badminton eyes ending 20-year title drought" is not a weather story).
+ */
+const OFF_TOPIC =
+  /\b(badminton|football|soccer|hockey|badminton|medal|olympic|asian games|sea games|league|match|fixture|stadium|team|coach|player|title drought|box office|celebrity|artist|concert|album|zoo negara|pet|recipe|travel deal|share price|stocks?|ringgit|bond|ipo|earnings)\b/i;
+
+/**
+ * Relevance is judged on the HEADLINE only, and off-topic headlines are rejected
+ * even when they trip a hazard word: matching the summary as well let unrelated
+ * stories through on a single passing mention.
+ */
+export function relevance(title: string, _body = ""): boolean {
+  if (OFF_TOPIC.test(title)) return false;
+  return KEYWORDS.test(title);
 }
 
 
@@ -70,7 +87,7 @@ export class NewsAdapter implements Adapter {
       const title = (a.title ?? "").trim();
       const link = (a.link ?? "").trim();
       if (!title || !link) continue;
-      if (!relevance(`${title} ${a.description ?? ""}`)) continue;
+      if (!relevance(title)) continue;
       out.push({
         source: "news" as const,
         station: slug(link),
