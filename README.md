@@ -112,6 +112,20 @@ per IP, with `x-ratelimit-*` headers.
 `/api/summary` is town-scoped on purpose: fetching every town's hourly and forecast
 series cost 1.09 MB, versus 133 KB scoped.
 
+## Keeping it running
+
+The process died silently once: no error in its own log, just gone, which means stale
+data and (once alerts exist) no alerts at all. `scripts/watchdog.sh` health-checks it
+and restarts it when it is not answering. Installed on the host as:
+
+```
+*/2 * * * * /home/synthsloth/projects/udara-api/scripts/watchdog.sh
+@reboot sleep 20 && /home/synthsloth/projects/udara-api/scripts/watchdog.sh
+```
+
+It runs as a user cron job, so it needs no root, and it logs every restart to
+`data/watchdog.log`. A user-level systemd unit would be tidier where available.
+
 ## Tests and quality gates
 
 - `ci.yml` runs typecheck + tests on push and pull request.
