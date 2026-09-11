@@ -9,6 +9,18 @@ interface GeoFeature {
     place: string | null;
     time: number;
     url: string;
+    // Richer USGS fields (all free in the same GeoJSON response):
+    alert?: string | null; // green|yellow|orange|red — PAGER impact alert
+    tsunami?: number | null; // 0/1
+    felt?: number | null; // number of "felt" reports
+    mmi?: number | null; // maximum modified Mercalli intensity
+    cdi?: number | null; // maximum reported intensity
+    sig?: number | null; // significance score
+    magType?: string | null;
+    nst?: number | null; // number of seismic stations used
+    status?: string | null; // reviewed|automatic
+    type?: string | null; // earthquake|quarry blast|...
+    title?: string | null;
   };
   geometry: { type: string; coordinates: number[] };
 }
@@ -32,6 +44,10 @@ function truncate(s: string, max: number): string {
  * per event, capped to the most recent set to keep payloads sane. A wider
  * window keeps the hazards view populated during quiet days while staying
  * idempotent (each event has a stable USGS event id).
+ *
+ * We keep the full USGS property set (PAGER alert, tsunami flag, felt reports,
+ * MMI/CDI intensity, significance, magType, station count, review status) so the
+ * UI can show what the raw feed actually carries instead of just magnitude.
  */
 export class UsgsEqAdapter implements Adapter {
   readonly id = "usgs-eq" as const;
@@ -43,14 +59,32 @@ export class UsgsEqAdapter implements Adapter {
       `&${SE_ASIA_BBOX}&minmagnitude=4.5&orderby=time`;
 
     const data = await fetchJson<GeoJsonResponse>(url);
-    return data.features.slice(-MAX_OBSERVATIONS).map((f) => ({
-      source: "usgs-eq" as const,
-      station: f.id,
-      stationName: truncate(f.properties.place ?? "Unknown", PLACE_LIMIT),
-      measuredAt: new Date(f.properties.time).toISOString(),
-      kind: "quake" as const,
-      value: f.properties.mag ?? 0,
-      meta: { depth: f.geometry.coordinates[2], url: f.properties.url, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] },
-    }));
+    return data.features.slice(-MAX_OBSERVATIONS).map((f) => {
+      const p = f.properties;
+      return {
+        source: "usgs-eq" as const,
+        station: f.id,
+        stationName: truncate(p.place ?? "Unknown", PLACE_LIMIT),
+        measuredAt: new Date(p.time).toISOString(),
+        kind: "quake" as const,
+        value: p.mag ?? 0,
+        meta: {
+          depth: f.geometry.coordinates[2],
+          url: p.url,
+          lat: f.geometry.coordinates[1],
+          lon: f.geometry.coordinates[0],
+          alert: p.alert ?? null,
+          tsunami: p.tsunami ?? null,
+          felt: p.felt ?? null,
+          mmi: p.mmi ?? null,
+          cdi: p.cdi ?? null,
+          sig: p.sig ?? null,
+          magType: p.magType ?? null,
+          nst: p.nst ?? null,
+          status: p.status ?? null,
+          eqType: p.type ?? null,
+        },
+      };
+    });
   }
 }

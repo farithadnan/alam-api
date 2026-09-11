@@ -114,11 +114,15 @@ export function buildServer(store: Store) {
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
     const stationBase = inState(store.latestBySource("doe-eqms").map(decorate));
     const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
-    const stations = stationBase.map((s) => ({
-      ...s,
-      coords: stationCoords(s.stationName, s.meta?.state as string | null | undefined),
-      trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
-    }));
+    const stations = stationBase.map((s) => {
+      const hist = store.history("doe-eqms", s.station, since24);
+      return {
+        ...s,
+        coords: stationCoords(s.stationName, s.meta?.state as string | null | undefined),
+        trend: hist.map((r) => r.value),
+        history: hist.map((r) => ({ t: r.measuredAt, v: r.value })),
+      };
+    });
     const weather = inState(store.latestBySource("open-meteo")).map((r) => {
       const loc = MALAYSIA_LOCALITIES.find((l) => l.slug === r.station);
       return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
