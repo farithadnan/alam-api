@@ -10,7 +10,8 @@
  *
  *   npm run check:drift
  */
-import { MET_DISTRICTS, districtState } from "../src/core/metDistricts.js";
+import { fetchJson } from "../src/util/http.js";
+import { MET_DISTRICTS } from "../src/core/metDistricts.js";
 import { MALAYSIA_LOCALITIES } from "../src/core/localities.js";
 import { districtOf } from "../src/core/townDistricts.js";
 
@@ -18,12 +19,19 @@ const FORECAST_URL = "https://api.data.gov.my/weather/forecast?limit=5000";
 
 interface Row { location?: { location_id?: string; location_name?: string } }
 
-const res = await fetch(FORECAST_URL);
-const body: unknown = await res.json();
+// Uses the shared fetch layer: per-host throttle + backoff that honours Retry-After,
+// so running this check never adds to a rate-limit problem.
+let body: unknown;
+try {
+  body = await fetchJson<unknown>(FORECAST_URL, { retries: 2 });
+} catch (err) {
+  console.error(`feed unreachable (${err instanceof Error ? err.message : err}) - drift not checked`);
+  process.exit(2);
+}
 if (!Array.isArray(body)) {
   // Distinguish "could not run" from "drift found": a rate-limited or erroring feed
   // must not look like a clean result, and must not crash the scheduled check.
-  console.error(`feed: unexpected response (HTTP ${res.status}, ${typeof body}) - drift not checked`);
+  console.error(`feed: unexpected response (${typeof body}) - drift not checked`);
   process.exit(2);
 }
 const rows = body as Row[];
