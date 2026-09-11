@@ -1,123 +1,124 @@
 /**
- * Town -> MET district, for every locality we poll.
+ * Town -> MET district, for every locality we poll. GENERATED FILE - do not edit.
+ * Regenerate with: npm run crosswalk   (source: data/town-districts.csv)
  *
- * Most towns are their own district; the rest are cities inside a differently
- * named district (Alor Setar is in Kota Setar, George Town in Timur Laut).
- * Generated from the locality list + district registry, with the city mappings
- * stated explicitly. The coverage test fails if a locality is ever left
- * unmapped, so the app cannot silently lose a town's official forecast.
+ * Most rows are derived from name identity. The rest are stated in the CSV with
+ * their provenance, because the weather feed does not record which district a town
+ * belongs to and the two lists are named independently.
+ *
+ * 32 of 108 rows come from the CSV; the rest are identity.
  */
 
 /** MET district for a locality slug. */
 export const TOWN_DISTRICT: Record<string, string> = {
-  "alor-gajah": "Alor Gajah", // Melaka
-  "alor-setar": "Kota Setar", // Kedah
-  "arau": "Perlis", // Perlis
-  "ayer-keroh": "Melaka Tengah", // Melaka
-  "bachok": "Bachok", // Kelantan
-  "balik-pulau": "Barat Daya", // Pulau Pinang
-  "baling": "Baling", // Kedah
-  "banting": "Kuala Langat", // Selangor
-  "batu-pahat": "Batu Pahat", // Johor
-  "bau": "Bau", // Sarawak
-  "beaufort": "Beaufort", // Sabah
-  "bentong": "Bentong", // Pahang
-  "bera": "Bera", // Pahang
-  "besut": "Besut", // Terengganu
-  "bintulu": "Bintulu", // Sarawak
-  "bukit-mertajam": "Seberang Perai Tengah", // Pulau Pinang
-  "butterworth": "Seberang Perai Utara", // Pulau Pinang
-  "cameron-highlands": "Tanah Tinggi Cameron", // Pahang
-  "dungun": "Dungun", // Terengganu
-  "george-town": "Timur Laut", // Pulau Pinang
-  "gerik": "Hulu Perak", // Perak
-  "gua-musang": "Gua Musang", // Kelantan
-  "ipoh": "Kinta", // Perak
-  "jasin": "Jasin", // Melaka
-  "jelebu": "Jelebu", // Negeri Sembilan
-  "jeli": "Jeli", // Kelantan
-  "jempol": "Jempol", // Negeri Sembilan
-  "johor-bahru": "Johor Bahru", // Johor
-  "kajang": "Hulu Langat", // Selangor
-  "kampar": "Kampar", // Perak
-  "kangar": "Perlis", // Perlis
-  "kapit": "Kapit", // Sarawak
-  "kemaman": "Kemaman", // Terengganu
-  "klang": "Klang", // Selangor
-  "kluang": "Kluang", // Johor
-  "kota-belud": "Kota Belud", // Sabah
-  "kota-bharu": "Kota Bharu", // Kelantan
-  "kota-kinabalu": "Kota Kinabalu", // Sabah
-  "kota-tinggi": "Kota Tinggi", // Johor
-  "kuala-berang": "Hulu Terengganu", // Terengganu
-  "kuala-kangsar": "Kuala Kangsar", // Perak
-  "kuala-krai": "Kuala Krai", // Kelantan
-  "kuala-kubu-bharu": "Hulu Selangor", // Selangor
-  "kuala-lumpur": "Kuala Lumpur", // WP Kuala Lumpur
-  "kuala-pilah": "Kuala Pilah", // Negeri Sembilan
-  "kuala-selangor": "Kuala Selangor", // Selangor
-  "kuala-terengganu": "Kuala Terengganu", // Terengganu
-  "kuantan": "Kuantan", // Pahang
-  "kuching": "Kuching", // Sarawak
-  "kudat": "Kudat", // Sabah
-  "kulai": "Kulai", // Johor
-  "kulim": "Kulim", // Kedah
-  "labuan": "Labuan", // WP Labuan
-  "lahad-datu": "Lahad Datu", // Sabah
-  "langkawi": "Langkawi", // Kedah
-  "lenggong": "Hulu Perak", // Perak
-  "lipis": "Lipis", // Pahang
-  "lundu": "Lundu", // Sarawak
-  "machang": "Machang", // Kelantan
-  "maran": "Maran", // Pahang
-  "masjid-tanah": "Alor Gajah", // Melaka
-  "melaka-city": "Melaka Tengah", // Melaka
-  "mersing": "Mersing", // Johor
-  "miri": "Miri", // Sarawak
-  "muar": "Muar", // Johor
-  "nibong-tebal": "Seberang Perai Selatan", // Pulau Pinang
-  "papar": "Papar", // Sabah
-  "parit-buntar": "Kerian", // Perak
-  "pasir-gudang": "Johor Bahru", // Johor
-  "pasir-mas": "Pasir Mas", // Kelantan
-  "pasir-puteh": "Pasir Puteh", // Kelantan
-  "pekan": "Pekan", // Pahang
-  "pendang": "Pendang", // Kedah
-  "pengerang": "Kota Tinggi", // Johor
-  "permaisuri": "Setiu", // Terengganu
-  "petaling-jaya": "Petaling", // Selangor
-  "pontian": "Pontian", // Johor
-  "port-dickson": "Port Dickson", // Negeri Sembilan
-  "putrajaya": "Putrajaya", // WP Putrajaya
-  "ranau": "Ranau", // Sabah
-  "rembau": "Rembau", // Negeri Sembilan
-  "rompin": "Rompin", // Pahang
-  "sabak-bernam": "Sabak Bernam", // Selangor
-  "sandakan": "Sandakan", // Sabah
-  "saratok": "Saratok", // Sarawak
-  "sarikei": "Sarikei", // Sarawak
-  "segamat": "Segamat", // Johor
-  "sepang": "Sepang", // Selangor
-  "seremban": "Seremban", // Negeri Sembilan
-  "shah-alam": "Petaling", // Selangor
-  "sibu": "Sibu", // Sarawak
-  "sik": "Sik", // Kedah
-  "sitiawan": "Manjung", // Perak
-  "sri-aman": "Sri Aman", // Sarawak
-  "subang-jaya": "Petaling", // Selangor
-  "sungai-petani": "Kuala Muda", // Kedah
-  "taiping": "Larut, Matang Dan Selama", // Perak
-  "tampin": "Tampin", // Negeri Sembilan
-  "tanah-merah": "Tanah Merah", // Kelantan
-  "tangkak": "Tangkak", // Johor
-  "tanjung-karang": "Kuala Selangor", // Selangor
-  "tanjung-malim": "Muallim", // Perak
-  "tawau": "Tawau", // Sabah
-  "teluk-intan": "Hilir Perak", // Perak
-  "temerloh": "Temerloh", // Pahang
-  "tenom": "Tenom", // Sabah
-  "tumpat": "Tumpat", // Kelantan
-  "yan": "Yan", // Kedah
+  "alor-gajah": "Alor Gajah", // Melaka · derived from name
+  "alor-setar": "Kota Setar", // Kedah · csv: manual assertion, state via MET district selector
+  "arau": "Perlis", // Perlis · csv: manual assertion, state via MET district selector
+  "ayer-keroh": "Melaka Tengah", // Melaka · csv: manual assertion, state via MET district selector
+  "bachok": "Bachok", // Kelantan · derived from name
+  "balik-pulau": "Barat Daya", // Pulau Pinang · csv: manual assertion, state via MET district selector
+  "baling": "Baling", // Kedah · derived from name
+  "banting": "Kuala Langat", // Selangor · csv: manual assertion, state via MET district selector
+  "batu-pahat": "Batu Pahat", // Johor · derived from name
+  "bau": "Bau", // Sarawak · derived from name
+  "beaufort": "Beaufort", // Sabah · derived from name
+  "bentong": "Bentong", // Pahang · derived from name
+  "bera": "Bera", // Pahang · derived from name
+  "besut": "Besut", // Terengganu · derived from name
+  "bintulu": "Bintulu", // Sarawak · derived from name
+  "bukit-mertajam": "Seberang Perai Tengah", // Pulau Pinang · csv: manual assertion, state via MET district selector
+  "butterworth": "Seberang Perai Utara", // Pulau Pinang · csv: manual assertion, state via MET district selector
+  "cameron-highlands": "Tanah Tinggi Cameron", // Pahang · csv: manual assertion, state via MET district selector
+  "dungun": "Dungun", // Terengganu · derived from name
+  "george-town": "Timur Laut", // Pulau Pinang · csv: manual assertion, state via MET district selector
+  "gerik": "Hulu Perak", // Perak · csv: manual assertion, state via MET district selector
+  "gua-musang": "Gua Musang", // Kelantan · derived from name
+  "ipoh": "Kinta", // Perak · csv: manual assertion, state via MET district selector
+  "jasin": "Jasin", // Melaka · derived from name
+  "jelebu": "Jelebu", // Negeri Sembilan · derived from name
+  "jeli": "Jeli", // Kelantan · derived from name
+  "jempol": "Jempol", // Negeri Sembilan · derived from name
+  "johor-bahru": "Johor Bahru", // Johor · derived from name
+  "kajang": "Hulu Langat", // Selangor · csv: manual assertion, state via MET district selector
+  "kampar": "Kampar", // Perak · derived from name
+  "kangar": "Perlis", // Perlis · csv: manual assertion, state via MET district selector
+  "kapit": "Kapit", // Sarawak · derived from name
+  "kemaman": "Kemaman", // Terengganu · derived from name
+  "klang": "Klang", // Selangor · derived from name
+  "kluang": "Kluang", // Johor · derived from name
+  "kota-belud": "Kota Belud", // Sabah · derived from name
+  "kota-bharu": "Kota Bharu", // Kelantan · derived from name
+  "kota-kinabalu": "Kota Kinabalu", // Sabah · derived from name
+  "kota-tinggi": "Kota Tinggi", // Johor · derived from name
+  "kuala-berang": "Hulu Terengganu", // Terengganu · csv: manual assertion, state via MET district selector
+  "kuala-kangsar": "Kuala Kangsar", // Perak · derived from name
+  "kuala-krai": "Kuala Krai", // Kelantan · derived from name
+  "kuala-kubu-bharu": "Hulu Selangor", // Selangor · csv: manual assertion, state via MET district selector
+  "kuala-lumpur": "Kuala Lumpur", // WP Kuala Lumpur · derived from name
+  "kuala-pilah": "Kuala Pilah", // Negeri Sembilan · derived from name
+  "kuala-selangor": "Kuala Selangor", // Selangor · derived from name
+  "kuala-terengganu": "Kuala Terengganu", // Terengganu · derived from name
+  "kuantan": "Kuantan", // Pahang · derived from name
+  "kuching": "Kuching", // Sarawak · derived from name
+  "kudat": "Kudat", // Sabah · derived from name
+  "kulai": "Kulai", // Johor · derived from name
+  "kulim": "Kulim", // Kedah · derived from name
+  "labuan": "Labuan", // WP Labuan · derived from name
+  "lahad-datu": "Lahad Datu", // Sabah · derived from name
+  "langkawi": "Langkawi", // Kedah · derived from name
+  "lenggong": "Hulu Perak", // Perak · csv: manual assertion, state via MET district selector
+  "lipis": "Lipis", // Pahang · derived from name
+  "lundu": "Lundu", // Sarawak · derived from name
+  "machang": "Machang", // Kelantan · derived from name
+  "maran": "Maran", // Pahang · derived from name
+  "masjid-tanah": "Alor Gajah", // Melaka · csv: manual assertion, state via MET district selector
+  "melaka-city": "Melaka Tengah", // Melaka · csv: manual assertion, state via MET district selector
+  "mersing": "Mersing", // Johor · derived from name
+  "miri": "Miri", // Sarawak · derived from name
+  "muar": "Muar", // Johor · derived from name
+  "nibong-tebal": "Seberang Perai Selatan", // Pulau Pinang · csv: manual assertion, state via MET district selector
+  "papar": "Papar", // Sabah · derived from name
+  "parit-buntar": "Kerian", // Perak · csv: manual assertion, state via MET district selector
+  "pasir-gudang": "Johor Bahru", // Johor · csv: manual assertion, state via MET district selector
+  "pasir-mas": "Pasir Mas", // Kelantan · derived from name
+  "pasir-puteh": "Pasir Puteh", // Kelantan · derived from name
+  "pekan": "Pekan", // Pahang · derived from name
+  "pendang": "Pendang", // Kedah · derived from name
+  "pengerang": "Kota Tinggi", // Johor · csv: manual assertion, state via MET district selector
+  "permaisuri": "Setiu", // Terengganu · csv: manual assertion, state via MET district selector
+  "petaling-jaya": "Petaling", // Selangor · csv: manual assertion, state via MET district selector
+  "pontian": "Pontian", // Johor · derived from name
+  "port-dickson": "Port Dickson", // Negeri Sembilan · derived from name
+  "putrajaya": "Putrajaya", // WP Putrajaya · derived from name
+  "ranau": "Ranau", // Sabah · derived from name
+  "rembau": "Rembau", // Negeri Sembilan · derived from name
+  "rompin": "Rompin", // Pahang · derived from name
+  "sabak-bernam": "Sabak Bernam", // Selangor · derived from name
+  "sandakan": "Sandakan", // Sabah · derived from name
+  "saratok": "Saratok", // Sarawak · derived from name
+  "sarikei": "Sarikei", // Sarawak · derived from name
+  "segamat": "Segamat", // Johor · derived from name
+  "sepang": "Sepang", // Selangor · derived from name
+  "seremban": "Seremban", // Negeri Sembilan · derived from name
+  "shah-alam": "Petaling", // Selangor · csv: manual assertion, state via MET district selector
+  "sibu": "Sibu", // Sarawak · derived from name
+  "sik": "Sik", // Kedah · derived from name
+  "sitiawan": "Manjung", // Perak · csv: manual assertion, state via MET district selector
+  "sri-aman": "Sri Aman", // Sarawak · derived from name
+  "subang-jaya": "Petaling", // Selangor · csv: manual assertion, state via MET district selector
+  "sungai-petani": "Kuala Muda", // Kedah · csv: manual assertion, state via MET district selector
+  "taiping": "Larut, Matang Dan Selama", // Perak · csv: manual assertion, state via MET district selector
+  "tampin": "Tampin", // Negeri Sembilan · derived from name
+  "tanah-merah": "Tanah Merah", // Kelantan · derived from name
+  "tangkak": "Tangkak", // Johor · derived from name
+  "tanjung-karang": "Kuala Selangor", // Selangor · csv: manual assertion, state via MET district selector
+  "tanjung-malim": "Muallim", // Perak · csv: manual assertion, state via MET district selector
+  "tawau": "Tawau", // Sabah · derived from name
+  "teluk-intan": "Hilir Perak", // Perak · csv: manual assertion, state via MET district selector
+  "temerloh": "Temerloh", // Pahang · derived from name
+  "tenom": "Tenom", // Sabah · derived from name
+  "tumpat": "Tumpat", // Kelantan · derived from name
+  "yan": "Yan", // Kedah · derived from name
 };
 
 /** MET district name for a locality slug, or null when unknown. */

@@ -14,7 +14,9 @@
     "ingest": "tsx src/cli.ts",
     "backfill": "tsx src/cli.ts backfill",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "crosswalk": "tsx scripts/build-crosswalk.ts",
+    "check:drift": "tsx scripts/check-drift.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
