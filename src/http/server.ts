@@ -110,9 +110,11 @@ export function buildServer(store: Store) {
   // + national hazards. One round-trip instead of four, all read from the snapshot store.
   app.get("/api/summary", async (req, reply) => {
     reply.header("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
-    const q = req.query as { state?: string; town?: string };
+    const q = req.query as { state?: string; town?: string; towns?: string };
     const state = q.state || "";
     const town = q.town || "";
+    // `town` = the saved location, `towns` = extra places being inspected (comma-separated).
+    const wanted = new Set([town, ...(q.towns ?? "").split(",")].map((t) => t.trim()).filter(Boolean));
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
     const stationBase = inState(store.latestBySource("doe-eqms").map(decorate));
     const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
@@ -131,7 +133,7 @@ export function buildServer(store: Store) {
       return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
     });
     // Forecast + hourly are shown for ONE town at a time — send only that town's.
-    const byTown = (rows: ObservationRow[]) => (town ? rows.filter((r) => r.station === town) : []);
+    const byTown = (rows: ObservationRow[]) => (wanted.size ? rows.filter((r) => wanted.has(r.station)) : []);
     const forecast = byTown(inState(store.forecast("open-meteo")));
     const hourly = byTown(inState(store.hourly("open-meteo")));
     const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
