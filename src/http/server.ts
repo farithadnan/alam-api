@@ -110,29 +110,30 @@ export function buildServer(store: Store) {
   // + national hazards. One round-trip instead of four, all read from the snapshot store.
   app.get("/api/summary", async (req, reply) => {
     reply.header("Cache-Control", "public, max-age=120, stale-while-revalidate=600");
-    const q = req.query as { state?: string };
+    const q = req.query as { state?: string; town?: string };
     const state = q.state || "";
+    const town = q.town || "";
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
     const stationBase = inState(store.latestBySource("doe-eqms").map(decorate));
     const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
-    const stations = stationBase.map((s) => {
-      const hist = store.history("doe-eqms", s.station, since24);
-      return {
-        ...s,
-        coords:
-          s.meta?.lat != null && s.meta?.lon != null
-            ? { lat: s.meta.lat as number, lon: s.meta.lon as number }
-            : stationCoords(s.stationName, s.meta?.state as string | null | undefined),
-        trend: hist.map((r) => r.value),
-        history: hist.map((r) => ({ t: r.measuredAt, v: r.value })),
-      };
-    });
+    // Per-day series for every station would dwarf the payload; the chart fetches
+    // /api/history on demand. Only a compact trend rides along here.
+    const stations = stationBase.map((s) => ({
+      ...s,
+      coords:
+        s.meta?.lat != null && s.meta?.lon != null
+          ? { lat: s.meta.lat as number, lon: s.meta.lon as number }
+          : stationCoords(s.stationName, s.meta?.state as string | null | undefined),
+      trend: store.history("doe-eqms", s.station, since24).map((r) => r.value),
+    }));
     const weather = inState(store.latestBySource("open-meteo")).map((r) => {
       const loc = MALAYSIA_LOCALITIES.find((l) => l.slug === r.station);
       return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
     });
-    const forecast = inState(store.forecast("open-meteo"));
-    const hourly = inState(store.hourly("open-meteo"));
+    // Forecast + hourly are shown for ONE town at a time — send only that town's.
+    const byTown = (rows: ObservationRow[]) => (town ? rows.filter((r) => r.station === town) : []);
+    const forecast = byTown(inState(store.forecast("open-meteo")));
+    const hourly = byTown(inState(store.hourly("open-meteo")));
     const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
       source: qk.source, station: qk.station, stationName: qk.stationName, measuredAt: qk.measuredAt, magnitude: qk.value, meta: qk.meta ?? null,
     }));
