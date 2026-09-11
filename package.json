@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "ingest": "tsx src/cli.ts",
+    "backfill": "tsx src/cli.ts backfill",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

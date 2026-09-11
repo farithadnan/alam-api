@@ -10,7 +10,7 @@ import { MetForecastAdapter } from "./metForecast.js";
 import { NewsAdapter } from "./news/index.js";
 
 /** Config may limit to specific states; empty means ALL 16 (full national coverage). */
-function resolveStates(cfg: Config): State[] {
+export function resolveStates(cfg: Config): State[] {
   const ids = cfg.EQMS_STATES.split(",").map((s) => s.trim()).filter(Boolean).map(Number);
   return ids.length ? MALAYSIA_STATES.filter((s) => ids.includes(s.id)) : MALAYSIA_STATES;
 }

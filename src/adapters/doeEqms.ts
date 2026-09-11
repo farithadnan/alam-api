@@ -87,11 +87,11 @@ export class DoeEqmsAdapter implements Adapter {
     return out;
   }
 
-  async poll(): Promise<Observation[]> {
+  async poll(at?: string): Promise<Observation[]> {
     const meta = await this.stationMeta();
     const results = await mapLimit(this.states, 4, async (st) => {
       try {
-        const localNow = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 19);
+        const localNow = at ?? new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 19);
         const url =
           `https://eqms.doe.gov.my/api3/publicportalapims/apitablehourly` +
           `?stateid=${st.id}&datetime=${localNow}`;
