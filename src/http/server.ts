@@ -177,38 +177,34 @@ export function buildServer(store: Store) {
     return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
   });
 
-  /** MET Malaysia's official district forecast, mapped to a state via the locality registry. */
+  /** MET Malaysia's official district forecast (district -> state from MET's own registry). */
   app.get("/api/official", async (req) => {
     const q = req.query as { state?: string; district?: string };
     const ALIAS: Record<string, string> = {
       penang: "Pulau Pinang", "pulau pinang": "Pulau Pinang",
-      "kuala lumpur": "Kuala Lumpur", kl: "Kuala Lumpur",
-      labuan: "Labuan", "wp labuan": "Labuan", putrajaya: "Putrajaya",
-      malacca: "Melaka", "negeri sembilan": "Negeri Sembilan", "n. sembilan": "Negeri Sembilan",
+      "kuala lumpur": "WP Kuala Lumpur", kl: "WP Kuala Lumpur",
+      labuan: "WP Labuan", "ft labuan": "WP Labuan",
+      putrajaya: "WP Putrajaya", "ft putrajaya": "WP Putrajaya",
+      "wp kuala lumpur": "WP Kuala Lumpur",
+      malacca: "Melaka", "n. sembilan": "Negeri Sembilan", "negeri sembilan": "Negeri Sembilan",
     };
-    const stateOf = (name: string): string | null => {
-      const n = name.trim().toLowerCase();
-      const hit =
-        MALAYSIA_LOCALITIES.find((l) => l.name.toLowerCase() === n) ||
-        MALAYSIA_LOCALITIES.find((l) => l.name.toLowerCase().includes(n) || n.includes(l.name.toLowerCase()));
-      if (hit) return hit.state;
-      const state = MALAYSIA_STATES.find((s) => s.name.toLowerCase() === n);
-      return state?.name ?? ALIAS[n] ?? null;
+    const stateOf = (v: string): string => {
+      const n = v.trim().toLowerCase();
+      const hit = MALAYSIA_STATES.find((s) => s.name.toLowerCase() === n);
+      return hit?.name ?? ALIAS[n] ?? v;
     };
+    const state = q.state ? stateOf(q.state) : null;
     const rows = store.metForecast().map((r) => ({
       district: r.stationName,
-      state: stateOf(r.stationName),
+      state: (r.meta?.state as string) ?? null,
       date: r.measuredAt.slice(0, 10),
       summary: (r.meta?.summary as string) ?? null,
       when: (r.meta?.when as string) ?? null,
-      morning: (r.meta?.morning as string) ?? null,
-      afternoon: (r.meta?.afternoon as string) ?? null,
-      night: (r.meta?.night as string) ?? null,
       tmin: (r.meta?.tmin as number) ?? null,
       tmax: (r.meta?.tmax as number) ?? null,
     }));
     const filtered = rows.filter(
-      (r) => (!q.state || r.state === q.state) && (!q.district || r.district.toLowerCase() === q.district.toLowerCase()),
+      (r) => (!state || r.state === state) && (!q.district || r.district.toLowerCase() === q.district.toLowerCase()),
     );
     return { official: filtered, districts: [...new Set(rows.map((r) => r.district))] };
   });

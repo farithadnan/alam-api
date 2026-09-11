@@ -7,7 +7,7 @@ import { UsgsEqAdapter } from "./usgsEq.js";
 import { OniAdapter } from "./oni.js";
 import { MetWarningsAdapter } from "./metWarnings.js";
 import { MetForecastAdapter } from "./metForecast.js";
-import { NewsAdapter } from "./news/index.js";
+import { NewsAdapter } from "./news.js";
 
 /** Config may limit to specific states; empty means ALL 16 (full national coverage). */
 export function resolveStates(cfg: Config): State[] {

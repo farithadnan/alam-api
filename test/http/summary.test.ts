@@ -36,14 +36,15 @@ const series = (kind: "hourly" | "forecast", slug: string, name: string, state: 
     value: 28 + i,
     meta: { state, code: "3", precip: 10, tmax: 32, tmin: 25 },
   }));
-const district = (name: string, summary: string): Observation => ({
+/** A MET district row. `state` is null for non-district locations (towns etc.). */
+const district = (name: string, summary: string, state: string | null = null): Observation => ({
   source: "my-met-forecast",
   station: name.toLowerCase(),
   stationName: name,
   measuredAt: "2026-09-11T00:00:00",
   kind: "metfc",
   value: 32,
-  meta: { summary, when: "Petang", tmin: 24, tmax: 32 },
+  meta: { summary, when: "Petang", tmin: 24, tmax: 32, state },
 });
 
 function seed(): Store {
@@ -58,9 +59,12 @@ function seed(): Store {
     ...series("hourly", "kangar", "Kangar", "Perlis"),
     ...series("forecast", "arau", "Arau", "Perlis"),
     ...series("forecast", "kangar", "Kangar", "Perlis"),
-    district("Langkawi", "Ribut petir"),
-    district("Kulim", "Tiada Hujan"),
-    district("Perlis", "Hujan di beberapa tempat"),
+    district("Langkawi", "Ribut petir", "Kedah"),
+    district("Kulim", "Tiada Hujan", "Kedah"),
+    district("Perlis", "Hujan di beberapa tempat", "Perlis"),
+    district("Central Seberang Perai", "Hujan", "Pulau Pinang"),
+    // a town, not a district: unknown state -> must never appear in a state list
+    district("Bayan Baru", "Ribut petir", null),
   ]);
   return store;
 }
@@ -118,16 +122,31 @@ describe("GET /api/summary — payload scoping", () => {
   });
 });
 
-describe("GET /api/official — MET districts mapped to states", () => {
-  it("returns only the requested state's districts, with locality-based mapping", async () => {
+describe("GET /api/official — MET districts resolved via MET's own registry", () => {
+  it("returns exactly Kedah's districts — no districts from other states", async () => {
     const { body } = await get("/api/official?state=Kedah");
     const districts = [...new Set(body.official.map((r: { district: string }) => r.district))].sort();
-    expect(districts).toEqual(["Kulim", "Langkawi"]); // both map to Kedah via the locality registry
-    expect(body.official[0]).toMatchObject({ state: "Kedah" });
+    expect(districts).toEqual(["Kulim", "Langkawi"]); // the seeded Kedah districts
+    expect(body.official.every((r: { state: string }) => r.state === "Kedah")).toBe(true);
   });
 
-  it("maps a district named after the state itself (no locality of that name)", async () => {
+  it("does not leak towns or state rows from other states into a state list", async () => {
+    const { body } = await get("/api/official?state=Kedah");
+    const names = body.official.map((r: { district: string }) => r.district);
+    // these are towns/state rows, not Kedah districts — the old bug put them here
+    for (const wrong of ["Bayan Baru", "Bayan Lepas", "Selayang", "Tasik Kenyir", "Kedah"]) {
+      expect(names).not.toContain(wrong);
+    }
+  });
+
+  it("maps a district named after its own state (Perlis)", async () => {
     const { body } = await get("/api/official?state=Perlis");
     expect([...new Set(body.official.map((r: { district: string }) => r.district))]).toEqual(["Perlis"]);
+  });
+
+  it("accepts state aliases (penang -> Pulau Pinang)", async () => {
+    const { body } = await get("/api/official?state=penang");
+    expect(body.official.length).toBeGreaterThan(0);
+    expect(body.official.every((r: { state: string }) => r.state === "Pulau Pinang")).toBe(true);
   });
 });

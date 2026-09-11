@@ -1,7 +1,7 @@
-import { fetchJson, fetchText } from "../../util/http.js";
-import { slug } from "../../util/text.js";
-import type { Adapter } from "../types.js";
-import type { Observation } from "../../core/types.js";
+import { fetchJson, fetchText } from "../util/http.js";
+import { slug } from "../util/text.js";
+import type { Adapter } from "./types.js";
+import type { Observation } from "../core/types.js";
 
 /** Weather/hazard relevance filter — keeps the feed useful rather than generic news. */
 const KEYWORDS =
