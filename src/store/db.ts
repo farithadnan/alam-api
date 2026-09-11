@@ -173,6 +173,16 @@ export class Store {
     );
   }
 
+  /** MET official district forecast (7 days per district), oldest date first. */
+  metForecast(): ObservationRow[] {
+    return this.read(
+      `SELECT source, station, station_name, measured_at, kind, value, meta
+         FROM observations WHERE kind = 'metfc'
+         ORDER BY station, measured_at`,
+      [],
+    );
+  }
+
   pruneOlderThan(days: number): number {
     const cutoff = new Date(Date.now() + 8 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 19);
     const res = this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).run(cutoff);

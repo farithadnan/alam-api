@@ -6,6 +6,7 @@ import { OpenMeteoAdapter } from "./openMeteo.js";
 import { UsgsEqAdapter } from "./usgsEq.js";
 import { OniAdapter } from "./oni.js";
 import { MetWarningsAdapter } from "./metWarnings.js";
+import { MetForecastAdapter } from "./metForecast.js";
 import { NewsAdapter } from "./news/index.js";
 
 /** Config may limit to specific states; empty means ALL 16 (full national coverage). */
@@ -22,6 +23,7 @@ export function buildAdapters(cfg: Config): Adapter[] {
     new UsgsEqAdapter(),
     new OniAdapter(),
     new MetWarningsAdapter(),
+    new MetForecastAdapter(),
     new NewsAdapter(cfg.NEWSDATA_API_KEY),
   ];
 }

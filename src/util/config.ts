@@ -15,6 +15,8 @@ const schema = z.object({
   POLL_NEWS_SECONDS: z.coerce.number().int().positive().default(1800),
   /** newsdata.io key (optional). Without it the news feed falls back to free Malaysian RSS. */
   NEWSDATA_API_KEY: z.string().optional(),
+  /** MET's official district forecast changes once a day. */
+  POLL_METFC_SECONDS: z.coerce.number().int().positive().default(21600),
 });
 
 export type Config = z.infer<typeof schema>;

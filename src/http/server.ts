@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
+import { MALAYSIA_STATES } from "../core/states.js";
 
 /** Approximate a monitoring station's position: match to a known locality, else state centroid. */
 function stationCoords(name: string, stateName?: string | null): { lat: number; lon: number } | null {
@@ -138,9 +139,18 @@ export function buildServer(store: Store) {
     const warnings = store.latestByKind("warning", 20).map((w) => ({
       source: w.source, station: w.station, title: w.stationName, severity: w.value, measuredAt: w.measuredAt, meta: w.meta ?? null,
     }));
-    const news = store.latestByKind("news", 15).map((n) => ({
-      title: n.stationName, url: n.meta?.url ?? null, outlet: n.meta?.outlet ?? null, publishedAt: n.measuredAt,
-    }));
+    const news = (() => {
+      const seen = new Set<string>();
+      const out: { title: string; url: string | null; outlet: string | null; publishedAt: string }[] = [];
+      for (const n of store.latestByKind("news", 40)) {
+        const url = (n.meta?.url as string) ?? null;
+        if (url && seen.has(url)) continue;
+        if (url) seen.add(url);
+        out.push({ title: n.stationName, url, outlet: (n.meta?.outlet as string) ?? null, publishedAt: n.measuredAt });
+        if (out.length >= 15) break;
+      }
+      return out;
+    })();
     const climate = store.latestBySource("oni")[0] ?? null;
     const states = [
       ...new Set([
@@ -171,6 +181,42 @@ export function buildServer(store: Store) {
       meta: w.meta ?? null,
     }));
     return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
+  });
+
+  /** MET Malaysia's official district forecast, mapped to a state via the locality registry. */
+  app.get("/api/official", async (req) => {
+    const q = req.query as { state?: string; district?: string };
+    const ALIAS: Record<string, string> = {
+      penang: "Pulau Pinang", "pulau pinang": "Pulau Pinang",
+      "kuala lumpur": "Kuala Lumpur", kl: "Kuala Lumpur",
+      labuan: "Labuan", "wp labuan": "Labuan", putrajaya: "Putrajaya",
+      malacca: "Melaka", "negeri sembilan": "Negeri Sembilan", "n. sembilan": "Negeri Sembilan",
+    };
+    const stateOf = (name: string): string | null => {
+      const n = name.trim().toLowerCase();
+      const hit =
+        MALAYSIA_LOCALITIES.find((l) => l.name.toLowerCase() === n) ||
+        MALAYSIA_LOCALITIES.find((l) => l.name.toLowerCase().includes(n) || n.includes(l.name.toLowerCase()));
+      if (hit) return hit.state;
+      const state = MALAYSIA_STATES.find((s) => s.name.toLowerCase() === n);
+      return state?.name ?? ALIAS[n] ?? null;
+    };
+    const rows = store.metForecast().map((r) => ({
+      district: r.stationName,
+      state: stateOf(r.stationName),
+      date: r.measuredAt.slice(0, 10),
+      summary: (r.meta?.summary as string) ?? null,
+      when: (r.meta?.when as string) ?? null,
+      morning: (r.meta?.morning as string) ?? null,
+      afternoon: (r.meta?.afternoon as string) ?? null,
+      night: (r.meta?.night as string) ?? null,
+      tmin: (r.meta?.tmin as number) ?? null,
+      tmax: (r.meta?.tmax as number) ?? null,
+    }));
+    const filtered = rows.filter(
+      (r) => (!q.state || r.state === q.state) && (!q.district || r.district.toLowerCase() === q.district.toLowerCase()),
+    );
+    return { official: filtered, districts: [...new Set(rows.map((r) => r.district))] };
   });
 
   app.get("/api/news", async () => ({
