@@ -4,6 +4,7 @@ import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
 import { MALAYSIA_STATES } from "../core/states.js";
+import { MY_OFFSET_MS, LATEST_LIMIT, NEWS_LIMIT, QUAKE_LIMIT } from "../core/constants.js";
 
 /** Approximate a monitoring station's position: match to a known locality, else state centroid. */
 function stationCoords(name: string, stateName?: string | null): { lat: number; lon: number } | null {
@@ -21,6 +22,14 @@ function stationCoords(name: string, stateName?: string | null): { lat: number; 
   return null;
 }
 
+
+/** Shared projections so summary + hazards can never drift apart. */
+function quakeView(q: ObservationRow) {
+  return { source: q.source, station: q.station, stationName: q.stationName, measuredAt: q.measuredAt, magnitude: q.value, meta: q.meta ?? null };
+}
+function warningView(w: ObservationRow) {
+  return { source: w.source, station: w.station, title: w.stationName, severity: w.value, measuredAt: w.measuredAt, meta: w.meta ?? null };
+}
 
 function decorate(o: ObservationRow) {
   // Only DOE eqms emits the Malaysia APIMS scale; Open-Meteo's us_aqi is a different
@@ -96,7 +105,7 @@ export function buildServer(store: Store) {
     const source = q.source ?? "doe-eqms";
     if (!q.station) return { error: "missing `station`" };
     const hours = Math.min(Math.max(Number(q.hours ?? 24) || 24, 1), 24 * 14);
-    const since = new Date(Date.now() + 8 * 3_600_000 - hours * 3_600_000).toISOString().slice(0, 19);
+    const since = new Date(Date.now() + MY_OFFSET_MS - hours * 3_600_000).toISOString().slice(0, 19);
     return { history: store.history(source, q.station, since) };
   });
 
@@ -117,7 +126,7 @@ export function buildServer(store: Store) {
     const wanted = new Set([town, ...(q.towns ?? "").split(",")].map((t) => t.trim()).filter(Boolean));
     const inState = (rows: ObservationRow[]) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
     const stationBase = inState(store.latestBySource("doe-eqms").map(decorate));
-    const since24 = new Date(Date.now() + 8 * 3_600_000 - 24 * 3_600_000).toISOString().slice(0, 19);
+    const since24 = new Date(Date.now() + MY_OFFSET_MS - 24 * 3_600_000).toISOString().slice(0, 19);
     // Per-day series for every station would dwarf the payload; the chart fetches
     // /api/history on demand. Only a compact trend rides along here.
     const stations = stationBase.map((s) => ({
@@ -136,21 +145,17 @@ export function buildServer(store: Store) {
     const byTown = (rows: ObservationRow[]) => (wanted.size ? rows.filter((r) => wanted.has(r.station)) : []);
     const forecast = byTown(inState(store.forecast("open-meteo")));
     const hourly = byTown(inState(store.hourly("open-meteo")));
-    const earthquakes = store.latestByKind("quake", 20).map((qk) => ({
-      source: qk.source, station: qk.station, stationName: qk.stationName, measuredAt: qk.measuredAt, magnitude: qk.value, meta: qk.meta ?? null,
-    }));
-    const warnings = store.latestByKind("warning", 20).map((w) => ({
-      source: w.source, station: w.station, title: w.stationName, severity: w.value, measuredAt: w.measuredAt, meta: w.meta ?? null,
-    }));
+    const earthquakes = store.latestByKind("quake", QUAKE_LIMIT).map(quakeView);
+    const warnings = store.latestByKind("warning", LATEST_LIMIT).map(warningView);
     const news = (() => {
       const seen = new Set<string>();
       const out: { title: string; url: string | null; outlet: string | null; publishedAt: string }[] = [];
-      for (const n of store.latestByKind("news", 40)) {
+      for (const n of store.latestByKind("news", NEWS_LIMIT * 3)) {
         const url = (n.meta?.url as string) ?? null;
         if (url && seen.has(url)) continue;
         if (url) seen.add(url);
         out.push({ title: n.stationName, url, outlet: (n.meta?.outlet as string) ?? null, publishedAt: n.measuredAt });
-        if (out.length >= 15) break;
+        if (out.length >= NEWS_LIMIT) break;
       }
       return out;
     })();
@@ -166,23 +171,9 @@ export function buildServer(store: Store) {
   });
 
   app.get("/api/hazards", async () => {
-    const earthquakes = store.latestByKind("quake", 20).map((q) => ({
-      source: q.source,
-      station: q.station,
-      stationName: q.stationName,
-      measuredAt: q.measuredAt,
-      magnitude: q.value,
-      meta: q.meta ?? null,
-    }));
+    const earthquakes = store.latestByKind("quake", QUAKE_LIMIT).map(quakeView);
     const climate = store.latestBySource("oni")[0] ?? null;
-    const warnings = store.latestByKind("warning", 20).map((w) => ({
-      source: w.source,
-      station: w.station,
-      title: w.stationName,
-      severity: w.value,
-      measuredAt: w.measuredAt,
-      meta: w.meta ?? null,
-    }));
+    const warnings = store.latestByKind("warning", LATEST_LIMIT).map(warningView);
     return { earthquakes, climate, warnings, timestamp: new Date().toISOString() };
   });
 

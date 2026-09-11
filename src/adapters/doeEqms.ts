@@ -107,8 +107,6 @@ export class DoeEqmsAdapter implements Adapter {
             value: r.API,
             meta: {
               state: st.name,
-              stateId: st.id,
-              symbol: r.PARAM_SYMBOL ?? null,
               lat: m?.lat ?? null,
               lon: m?.lon ?? null,
               place: m?.place ?? null,

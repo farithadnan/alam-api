@@ -1,4 +1,5 @@
 import { fetchJson } from "../util/http.js";
+import { slug } from "../util/text.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
 
@@ -26,9 +27,6 @@ function warnType(title: string, heading: string): string {
   return "weather";
 }
 
-function slug(s: string): string {
-  return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
-}
 
 /**
  * MET Malaysia weather warnings — heavy rain / strong wind / rough seas / heat,

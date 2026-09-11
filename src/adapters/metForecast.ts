@@ -1,4 +1,5 @@
 import { fetchJson } from "../util/http.js";
+import { slug } from "../util/text.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
 
@@ -20,9 +21,6 @@ const FORECAST_URL = "https://api.data.gov.my/weather/forecast?limit=5000";
 /** One row per district per day — MET covers ~346 districts nationwide. */
 const MAX_ROWS = 3200;
 
-function slug(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
-}
 
 /**
  * MET Malaysia's official 7-day outlook, per district, bilingual source text.
