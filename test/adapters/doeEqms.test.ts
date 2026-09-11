@@ -46,4 +46,45 @@ describe("DoeEqmsAdapter (nationwide)", () => {
     expect(rows).toHaveLength(2); // Johor's only; Kedah skipped
     expect(rows.every((r) => r.meta?.state === "Johor")).toBe(true);
   });
+
+  it("merges station metadata (exact coords, category, PM10) from the map service", async () => {
+    const f = vi.fn(async (url: string) => {
+      if (/MapServer/.test(url)) {
+        return {
+          ok: true,
+          json: async () => ({
+            features: [
+              {
+                attributes: {
+                  STATION_ID: "CA29J",
+                  LATITUDE: 2.5,
+                  LONGITUDE: 102.8,
+                  PLACE: "Sekolah Kebangsaan Segamat",
+                  STATION_CATEGORY: "Sub Urban ",
+                  REGION_NAME: "Southern",
+                  API_PM10: 61,
+                  PARAM_SELECTED: "PM2.5",
+                },
+              },
+            ],
+          }),
+        };
+      }
+      const id = Number(/stateid=(\d+)/.exec(url)?.[1]);
+      return { ok: true, json: async () => ({ api_table_hourly: TABLES[id] ?? [] }) };
+    });
+    vi.stubGlobal("fetch", f);
+    const rows = await new DoeEqmsAdapter([{ id: 1, name: "Johor" }]).poll();
+    const segamat = rows.find((r) => r.station === "CA29J");
+    expect(segamat?.meta).toMatchObject({
+      lat: 2.5,
+      lon: 102.8,
+      place: "Sekolah Kebangsaan Segamat",
+      category: "Sub Urban",
+      pm10: 61,
+      param: "PM2.5",
+    });
+    // stations absent from the map service stay valid, just without context
+    expect(rows.find((r) => r.station === "CA33J")?.meta?.lat).toBeNull();
+  });
 });

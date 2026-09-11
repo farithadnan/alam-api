@@ -118,7 +118,10 @@ export function buildServer(store: Store) {
       const hist = store.history("doe-eqms", s.station, since24);
       return {
         ...s,
-        coords: stationCoords(s.stationName, s.meta?.state as string | null | undefined),
+        coords:
+          s.meta?.lat != null && s.meta?.lon != null
+            ? { lat: s.meta.lat as number, lon: s.meta.lon as number }
+            : stationCoords(s.stationName, s.meta?.state as string | null | undefined),
         trend: hist.map((r) => r.value),
         history: hist.map((r) => ({ t: r.measuredAt, v: r.value })),
       };
