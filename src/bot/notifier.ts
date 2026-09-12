@@ -90,6 +90,7 @@ export function startNotifier(cfg: Config, store: Store, log: Log): () => void {
     .then((u) => {
       booted = true;
       log(`[notifier] bot online as @${u}`);
+      void cycle(); // settle the silent baseline as soon as the token is valid
     })
     .catch((err) => {
       log(`[notifier] token rejected (${err instanceof Error ? err.message : String(err)}) — alerts disabled`);
@@ -130,7 +131,6 @@ export function startNotifier(cfg: Config, store: Store, log: Log): () => void {
     }
   }
   timers.push(setInterval(() => void cycle(), Math.max(30_000, cfg.POLL_SECONDS * 1000)));
-  void cycle(); // first pass as soon as the token is validated
 
   return stop;
 }
