@@ -64,9 +64,15 @@ export class TelegramClient {
   async sendMessage(chatId: number, text: string): Promise<boolean> {
     if (!text) return false;
     await this.api("sendMessage", { chat_id: chatId, text, disable_web_page_preview: true });
-    this.log(`[telegram] sent to ${chatId}`);
+    this.log(`[telegram] sent to ${chatId}: ${preview(text)}`);
     return true;
   }
+}
+
+/** First line of a message, capped, so logs tell an alert from a reply at a glance. */
+function preview(text: string): string {
+  const line = text.split("\n")[0] ?? "";
+  return line.length > 42 ? `${line.slice(0, 42)}…` : line;
 }
 
 /**
