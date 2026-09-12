@@ -55,4 +55,7 @@ export const cadenceFor = (cfg: ReturnType<typeof loadConfig>) => (id: string): 
     "my-met": cfg.POLL_MET_SECONDS * 1000,
     "my-met-forecast": cfg.POLL_METFC_SECONDS * 1000,
     news: cfg.POLL_NEWS_SECONDS * 1000,
+    // Flood alerts refresh on the shared AQI cadence (5 min); the freshness gate
+    // inside the adapter already protects against stale readings between polls.
+    infobanjir: cfg.POLL_SECONDS * 1000,
   })[id] ?? cfg.POLL_SECONDS * 1000;

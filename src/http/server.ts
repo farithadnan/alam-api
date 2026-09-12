@@ -89,6 +89,7 @@ export function buildServer(store: Store, dashboardDist = "") {
       "/api/forecast?source=open-meteo",
       "/api/stations",
       "/api/hazards",
+      "/api/flood",
       "/api/news",
     ],
     alias: "/v1/* mirrors /api/*",
@@ -274,6 +275,28 @@ export function buildServer(store: Store, dashboardDist = "") {
       reply.code(404).send({ error: "not_found", path });
     });
   }
+
+  /**
+   * Current flood + heavy-rain alerts from InfoBanjir: river levels and hourly rainfall
+   * currently in an alert band. Alerts are freshness-gated at ingest, so a stale or
+   * offline station never surfaces here as a (false) alarm.
+   */
+  app.get("/api/flood", async (req) => {
+    const q = req.query as { state?: string };
+    const scope = (rows: ObservationRow[]) => (q.state ? rows.filter((r) => r.meta?.state === q.state) : rows);
+    return {
+      river: scope(store.latestByKind("flood")).map((r) => ({
+        station: r.station, stationName: r.stationName, state: r.meta?.state, district: r.meta?.district,
+        basin: r.meta?.basin, level: r.value, severity: r.meta?.severity, trend: r.meta?.trend,
+        lat: r.meta?.lat, lon: r.meta?.lon, at: r.measuredAt,
+      })),
+      rain: scope(store.latestByKind("rainfall")).map((r) => ({
+        station: r.station, stationName: r.stationName, state: r.meta?.state, district: r.meta?.district,
+        mmHour: r.value, severity: r.meta?.severity, lat: r.meta?.lat, lon: r.meta?.lon, at: r.measuredAt,
+      })),
+      timestamp: new Date().toISOString(),
+    };
+  });
 
   return app;
 }

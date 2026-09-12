@@ -8,6 +8,7 @@ import { OniAdapter } from "./oni.js";
 import { MetWarningsAdapter } from "./metWarnings.js";
 import { MetForecastAdapter } from "./metForecast.js";
 import { NewsAdapter } from "./news.js";
+import { InfobanjirAdapter } from "./infobanjir.js";
 
 /** Config may limit to specific states; empty means ALL 16 (full national coverage). */
 export function resolveStates(cfg: Config): State[] {
@@ -25,5 +26,6 @@ export function buildAdapters(cfg: Config): Adapter[] {
     new MetWarningsAdapter(),
     new MetForecastAdapter(),
     new NewsAdapter(cfg.NEWSDATA_API_KEY),
+    new InfobanjirAdapter(),
   ];
 }
