@@ -63,7 +63,18 @@ export class TelegramClient {
 
   async sendMessage(chatId: number, text: string): Promise<boolean> {
     if (!text) return false;
-    await this.api("sendMessage", { chat_id: chatId, text, disable_web_page_preview: true });
+    const base = { chat_id: chatId, text, disable_web_page_preview: true };
+    try {
+      await this.api("sendMessage", { ...base, parse_mode: "HTML" });
+    } catch (err) {
+      if ((err as { status?: number }).status === 400) {
+        // A dynamic value slipped an HTML-special char: resend as plain text so the
+        // message is never lost to a formatting edge case.
+        await this.api("sendMessage", base);
+      } else {
+        throw err;
+      }
+    }
     this.log(`[telegram] sent to ${chatId}: ${preview(text)}`);
     return true;
   }

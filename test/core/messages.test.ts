@@ -4,7 +4,7 @@ import { warningMsg, aqiMsg, aqiRecoveredMsg, quakeMsg, parsePayload, commands, 
 describe("alert messages — one fact first, place, short, link", () => {
   it("leads a warning with the fact and the place", () => {
     const t = warningMsg({ title: "Thunderstorm Warning", place: "Perlis", issuedAt: new Date(Date.now() - 12 * 60_000).toISOString(), validUntil: "2026-09-11T18:00:00+08:00" });
-    expect(t.split("\n")[0]).toBe("⚠️ Thunderstorm Warning — Perlis");
+    expect(t.split("\n")[0]).toBe("<b>⚠️ Thunderstorm Warning — Perlis</b>");
     expect(t).toContain("Issued 12 min ago");
     expect(t).toContain("Valid until");
     expect(t).toContain("ohmyalam.com");
@@ -18,7 +18,7 @@ describe("alert messages — one fact first, place, short, link", () => {
 
   it("marks an AQI crossing with the band icon, value and place", () => {
     const t = aqiMsg({ value: 162, band: "Unhealthy", place: "Pasir Gudang", advice: "Avoid prolonged outdoor activity." });
-    expect(t.split("\n")[0]).toBe("🔴 AQI 162 · Unhealthy");
+    expect(t.split("\n")[0]).toBe("<b>🔴 AQI 162 · Unhealthy</b>");
     expect(t).toContain("Pasir Gudang");
     expect(t).toContain("Avoid prolonged outdoor activity.");
     expect(t).toContain("ohmyalam.com");
@@ -32,7 +32,7 @@ describe("alert messages — one fact first, place, short, link", () => {
 
   it("states a quake as magnitude first, with depth and age", () => {
     const t = quakeMsg({ magnitude: 5.34, place: "83 km E of Lospalos", depthKm: 10.4, at: new Date(Date.now() - 3 * 3600_000).toISOString(), word: "Moderate" });
-    expect(t.split("\n")[0]).toBe("🌐 M 5.3 · Moderate — 83 km E of Lospalos");
+    expect(t.split("\n")[0]).toBe("<b>🌐 M 5.3 · Moderate — 83 km E of Lospalos</b>");
     expect(t).toContain("Depth 10 km");
     expect(t).toContain("3h ago");
   });
@@ -71,9 +71,12 @@ describe("deep links and commands", () => {
     expect(commands.welcome()).toContain("/location");
     expect(commands.welcome("Arau, Perlis")).toContain("Watching Arau, Perlis");
   });
-  it("keeps a blank line before the command footer in status", () => {
-    expect(commands.status("Arau, Perlis", ["air quality"])).toMatch(/\n\n\/location/);
-    expect(commands.status("Arau, Perlis", ["air quality"], "Air now: Moderate · AQI 60")).toMatch(/\n\n\/location/);
+  it("keeps a blank line before the command footer and uses bullets", () => {
+    const s = commands.status("Arau, Perlis", ["air quality"]);
+    expect(s).toMatch(/\n\n<b>Commands<\/b>/);
+    expect(s).toContain("• <b>/location</b>");
+    expect(s).toContain("• <b>/stop</b>");
+    expect(commands.status("Arau, Perlis", ["air quality"], "Air now: Moderate · AQI 60")).toMatch(/\n\n<b>Commands<\/b>/);
   });
   it("formats age and clock without inventing values", () => {
     expect(ago(new Date(Date.now() - 90 * 60_000).toISOString())).toBe("2h ago");

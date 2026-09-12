@@ -1,9 +1,11 @@
 /**
  * Every message the bot can send, in one file.
  *
- * Kept together so the copy can be reviewed as copy, without reading the notifier. The
- * rules from the brief are applied throughout: one main fact first, the place stated,
- * short, and always a link back to Alam.
+ * Kept together so the copy can be reviewed as copy, without reading the notifier.
+ * Messages are Telegram HTML: a bold heading, then a blank line, then a short body,
+ * and commands as bullet points with the command in bold. Every dynamic value is
+ * escaped, and the sender falls back to plain text if anything still trips the
+ * parser, so an alert is never lost to a formatting edge case.
  */
 
 /** Where alerts link back to. Overridden by SITE_URL. */
@@ -36,7 +38,27 @@ export function ago(iso: string, now = Date.now()): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-const link = (url?: string) => (url || DEFAULT_URL).replace(/^https?:\/\//, "");
+/** HTML-escape a dynamic value so parse_mode=HTML can't break on user/upstream text. */
+const esc = (s: unknown): string =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const b = (s: string) => `<b>${s}</b>`;
+
+const displayUrl = (u: string) => u.replace(/^https?:\/\//, "");
+
+/**
+ * A clickable link back to the site. Display text is the host without the scheme,
+ * so it reads clean while Telegram treats the whole anchor as tappable.
+ */
+const link = (url?: string): string => {
+  const u = (url || DEFAULT_URL).replace(/\/+$/, "");
+  return `<a href="${esc(u)}">${esc(displayUrl(u))}</a>`;
+};
+
+/** One bullet-point command row: a bold command followed by a plain description. */
+const bullet = (name: string, desc: string) => `• ${b(name)}  ${desc}`;
+
+const commandsBlock = (rows: [string, string][]): string => `${b("Commands")}\n${rows.map(([n, d]) => bullet(n, d)).join("\n")}`;
 
 export interface WarningInput {
   title: string;
@@ -48,8 +70,8 @@ export interface WarningInput {
 
 /** A MET warning. */
 export function warningMsg({ title, place, issuedAt, validUntil, url }: WarningInput): string {
-  const lines = [`⚠️ ${title} — ${place}`, `Issued ${ago(issuedAt)}`];
-  if (validUntil) lines.push(`Valid until ${clock(validUntil)}`);
+  const lines = [b(`⚠️ ${esc(title)} — ${esc(place)}`), `Issued ${ago(issuedAt)}`];
+  if (validUntil) lines.push(`Valid until ${esc(clock(validUntil))}`);
   return `${lines.join("\n")}\n\nView details → ${link(url)}`;
 }
 
@@ -64,15 +86,15 @@ export interface AqiInput {
 /** Air quality crossing into a worse band. */
 export function aqiMsg({ value, band, place, advice, url }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🔴";
-  const body = [`${icon} AQI ${Math.round(value)} · ${band}`, place];
-  if (advice) body.push(advice);
+  const body = [b(`${icon} AQI ${Math.round(value)} · ${esc(band)}`), esc(place)];
+  if (advice) body.push(esc(advice));
   return `${body.join("\n")}\n\n${link(url)}`;
 }
 
 /** Air quality coming back down: cheap, and it stops people checking. */
 export function aqiRecoveredMsg({ value, band, url }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🟢";
-  return `${icon} AQI improved to ${Math.round(value)} · ${band}\nYour area is clear again.\n\n${link(url)}`;
+  return `${b(`${icon} AQI improved to ${Math.round(value)} · ${esc(band)}`)}\nYour area is clear again.\n\n${link(url)}`;
 }
 
 export interface QuakeInput {
@@ -86,9 +108,9 @@ export interface QuakeInput {
 
 /** A significant earthquake. */
 export function quakeMsg({ magnitude, place, depthKm, at, word, url }: QuakeInput): string {
-  const head = `🌐 M ${magnitude.toFixed(1)}${word ? ` · ${word}` : ""} — ${place}`;
+  const head = `🌐 M ${magnitude.toFixed(1)}${word ? ` · ${esc(word)}` : ""} — ${esc(place)}`;
   const detail = [depthKm != null ? `Depth ${Math.round(depthKm)} km` : "", ago(at)].filter(Boolean).join(" · ");
-  return `${head}\n${detail}\n\n${link(url)}`;
+  return `${b(head)}\n${detail}\n\n${link(url)}`;
 }
 
 /** Deep-link payload from /start, e.g. "loc_arau_perlis" -> Arau, Perlis. */
@@ -102,49 +124,67 @@ export function parsePayload(payload?: string | null): { town: string; state: st
 export const commands = {
   welcome: (place?: string | null) =>
     [
-      "👋 Alam alerts",
-      place
-        ? `Watching ${place}. I will message you when the air turns unhealthy or a warning is issued.`
-        : "I will message you when the air turns unhealthy or a warning is issued for your place.",
+      b("👋 Alam alerts"),
       "",
-      "/location  set your place",
-      "/stop      pause alerts",
-      "/help      more",
+      place
+        ? `Watching ${esc(place)}. I'll message you when the air turns unhealthy or a warning is issued.`
+        : "I'll message you when the air turns unhealthy or a warning is issued for your place.",
+      "",
+      commandsBlock([
+        ["/location", "set your place"],
+        ["/stop", "pause alerts"],
+        ["/help", "more"],
+      ]),
     ].join("\n"),
 
-  locationPrompt: () => "📍 Where should I alert you?\nSend /location followed by your town and state, e.g. /location arau perlis",
+  locationPrompt: () => `${b("📍 Where should I alert you?")}\n\nSend /location followed by your town and state, e.g. /location arau perlis`,
 
-  locationUnknown: (input: string) => `I don't know "${input}". Try a town and state, e.g. /location arau perlis`,
+  locationUnknown: (input: string) => `I don't know "${esc(input)}".\n\nTry a town and state, e.g. /location arau perlis`,
 
   locationSet: (place: string) =>
-    `✅ Location set to ${place}.\n\n/status  review your alerts\n/stop    pause alerts`,
+    [
+      b(`✅ Location set to ${esc(place)}`),
+      "",
+      "I'll keep an eye on it and message you when something changes.",
+      "",
+      commandsBlock([
+        ["/status", "review your alerts"],
+        ["/stop", "pause alerts"],
+      ]),
+    ].join("\n"),
 
   status: (place: string, alerts: string[], condition?: string | null) =>
     [
-      `📍 ${place}`,
-      condition ?? null,
-      alerts.length ? `Alerts on: ${alerts.join(", ")}` : "No alerts on.",
+      b(`📍 ${esc(place)}`),
+      condition ? esc(condition) : null,
+      alerts.length ? `Alerts on: ${alerts.map(esc).join(", ")}` : "No alerts on.",
       "",
-      "/location  change place",
-      "/stop      pause alerts",
+      commandsBlock([
+        ["/location", "change place"],
+        ["/stop", "pause alerts"],
+      ]),
     ]
       .filter((l): l is string => l !== null)
       .join("\n"),
 
   help: () =>
     [
-      "Alam alerts sends one message when something changes: air quality crossing into an unhealthy band, a warning issued, or a significant quake near you.",
+      b("Alam alerts"),
       "",
-      "/location  set your place",
-      "/status    your place and your alerts",
-      "/stop      pause alerts",
-      "/help      more",
+      "One message when something changes: air quality crossing into an unhealthy band, a warning issued, or a significant quake near you.",
+      "",
+      commandsBlock([
+        ["/location", "set your place"],
+        ["/status", "your place and your alerts"],
+        ["/stop", "pause alerts"],
+        ["/help", "more"],
+      ]),
     ].join("\n"),
 
-  stopped: () => "🔕 Alerts off. Send /start any time to turn them back on.",
+  stopped: () => `${b("🔕 Alerts off")}\n\nSend /start any time to turn them back on.`,
 
-  unknown: () => "I did not catch that. Try /location, /status, /stop or /help.",
+  unknown: () => "I did not catch that.\n\nTry /location, /status, /stop or /help.",
 
   /** Dev-only: prove the pipe end to end with a sample alert for the chat's place. */
-  debug: (place: string) => `🧪 test alert — this is what an AQI alert looks like for ${place}. No action needed.`,
+  debug: (place: string) => `🧪 test alert: this is what an AQI alert looks like for ${esc(place)}. No action needed.`,
 };
