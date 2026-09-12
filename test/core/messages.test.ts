@@ -69,7 +69,7 @@ describe("deep links and commands", () => {
     expect(commands.help()).toContain("/stop");
     expect(commands.stopped()).toContain("Alerts off");
     expect(commands.welcome()).toContain("/location");
-    expect(commands.welcome("Arau, Perlis")).toContain("Currently watching Arau, Perlis");
+    expect(commands.welcome("Arau, Perlis")).toContain("Watching Arau, Perlis");
   });
   it("formats age and clock without inventing values", () => {
     expect(ago(new Date(Date.now() - 90 * 60_000).toISOString())).toBe("2h ago");

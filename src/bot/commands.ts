@@ -17,7 +17,7 @@ export interface CommandContext {
 }
 
 const labelFor = (t: string): string =>
-  ({ aqi: "AQI", warning: "warnings", quake: "quakes" })[t] ?? t;
+  ({ aqi: "air quality", warning: "warnings", quake: "earthquakes" })[t] ?? t;
 
 const commandOf = (t: string): { name: string; arg: string } | null => {
   if (!t.startsWith("/")) return null;

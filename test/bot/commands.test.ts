@@ -36,7 +36,7 @@ describe("command routing", () => {
 
   it("/start with a deep-link subscribes and acknowledges the place", () => {
     const text = reply(101, "/start loc_arau_perlis");
-    expect(text).toContain("Currently watching Arau, Perlis");
+    expect(text).toContain("Watching Arau, Perlis");
     const sub = store.getSubscription(101)!;
     expect(sub.townSlug).toBe("arau");
     expect(sub.state).toBe("Perlis");
@@ -49,7 +49,7 @@ describe("command routing", () => {
     expect(set).toContain("Location set to Johor Bahru, Johor");
     const st = reply(102, "/status");
     expect(st).toContain("Johor Bahru, Johor");
-    expect(st).toContain("Alerts on: AQI, warnings, quakes");
+    expect(st).toContain("Alerts on: air quality, warnings, earthquakes");
   });
 
   it("/location with no argument prompts", () => {

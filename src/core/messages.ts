@@ -103,29 +103,39 @@ export const commands = {
   welcome: (place?: string | null) =>
     [
       "👋 Alam alerts",
-      place ? `Currently watching ${place}.` : "I will tell you when the air turns unhealthy or a warning is issued for your place.",
+      place
+        ? `Watching ${place}. I will message you when the air turns unhealthy or a warning is issued.`
+        : "I will message you when the air turns unhealthy or a warning is issued for your place.",
       "",
-      "Set your place: /location",
-      "Check: /status  ·  Stop: /stop  ·  Help: /help",
+      "/location  set your place",
+      "/stop      pause alerts",
+      "/help      more",
     ].join("\n"),
 
   locationPrompt: () => "📍 Where should I alert you?\nSend /location followed by your town and state, e.g. /location arau perlis",
 
   locationUnknown: (input: string) => `I don't know "${input}". Try a town and state, e.g. /location arau perlis`,
 
-  locationSet: (place: string) => `✅ Location set to ${place}. I will alert you here.\n\n/status to review · /stop to turn off`,
+  locationSet: (place: string) =>
+    `✅ Location set to ${place}.\n\n/status  review your alerts\n/stop    pause alerts`,
 
   status: (place: string, alerts: string[]) =>
-    [`📍 ${place}`, alerts.length ? `Alerts on: ${alerts.join(", ")}` : "No alerts on.", "", "/stop to turn off · /location to change place"].join("\n"),
+    [
+      `📍 ${place}`,
+      alerts.length ? `Alerts on: ${alerts.join(", ")}` : "No alerts on.",
+      "",
+      "/location  change place",
+      "/stop      pause alerts",
+    ].join("\n"),
 
   help: () =>
     [
       "Alam alerts sends one message when something changes: air quality crossing into an unhealthy band, a warning issued, or a significant quake near you.",
       "",
-      "/location — set your place",
-      "/status — your place and active alerts",
-      "/stop — turn alerts off",
-      "/help — this",
+      "/location  set your place",
+      "/status    your place and your alerts",
+      "/stop      pause alerts",
+      "/help      more",
     ].join("\n"),
 
   stopped: () => "🔕 Alerts off. Send /start any time to turn them back on.",
