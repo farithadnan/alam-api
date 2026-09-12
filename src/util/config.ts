@@ -24,6 +24,8 @@ const schema = z.object({
   /** Telegram alerts are silent overnight (Malaysia local time). Inclusive start, exclusive end. */
   ALERT_QUIET_START: z.coerce.number().int().min(0).max(23).default(23),
   ALERT_QUIET_END: z.coerce.number().int().min(0).max(23).default(7),
+  /** Absolute path to a built frontend (dashboard) to serve at `/`. Empty = API only. */
+  DASHBOARD_DIST: z.string().default(""),
 });
 
 export type Config = z.infer<typeof schema>;

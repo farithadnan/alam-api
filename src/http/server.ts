@@ -1,6 +1,7 @@
 
 import { districtFor } from "../core/townDistricts.js";import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import type { Store, ObservationRow } from "../store/db.js";
 import { aqiBand } from "../core/bands.js";
 import { WHO_PM25_24H } from "../core/haze.js";
@@ -43,7 +44,7 @@ function decorate(o: ObservationRow) {
 
 const RATE_LIMIT_PER_MIN = Number(process.env.RATE_LIMIT_PER_MIN ?? 120);
 
-export function buildServer(store: Store) {
+export function buildServer(store: Store, dashboardDist = "") {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? "info" },
     // `/v1/*` is a stable public alias of `/api/*` — one implementation, two paths.
@@ -93,9 +94,9 @@ export function buildServer(store: Store) {
     alias: "/v1/* mirrors /api/*",
   });
 
-  // Root is the API index too, so a bare visit (or an alert link back to the site)
-  // lands on something useful instead of a Fastify 404.
-  app.get("/", async () => apiIndex());
+  // Bare "/" (an alert-link or tunnel visit): serve the dashboard when one is
+  // configured, else the API index so the URL never 404s.
+  if (!dashboardDist) app.get("/", async () => apiIndex());
   app.get("/api", async () => apiIndex());
 
   app.get("/api/stations", async () => {
@@ -257,6 +258,22 @@ export function buildServer(store: Store) {
       })),
     };
   });
+
+  // Serve the built dashboard (its own dist) at the root when configured, so a single
+  // origin (and a single tunnel URL) is both the site and the API. API routes are
+  // registered above, so /api/* always wins; static serves the rest.
+  if (dashboardDist) {
+    app.register(fastifyStatic, { root: dashboardDist });
+    // In-app routes that don't match a real file resolve to index.html, so deep
+    // navigation through the tunnel never 404s.
+    app.setNotFoundHandler((req, reply) => {
+      const path = (req.url ?? "").split("?")[0] ?? "";
+      if (req.method === "GET" && !path.startsWith("/api/") && !path.startsWith("/v1/") && !/\.[a-z0-9]+$/i.test(path)) {
+        return reply.sendFile("index.html");
+      }
+      reply.code(404).send({ error: "not_found", path });
+    });
+  }
 
   return app;
 }

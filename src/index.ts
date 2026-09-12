@@ -10,7 +10,7 @@ const cfg = loadConfig();
 const store = new Store(cfg.DB_PATH);
 const adapters = buildAdapters(cfg);
 
-const app = buildServer(store);
+const app = buildServer(store, cfg.DASHBOARD_DIST);
 const cadence = cadenceFor(cfg);
 const stop = startScheduler(store, adapters, cadence, (m) => app.log.info(m));
 const stopNotifier = startNotifier(cfg, store, (m) => app.log.info(m));
