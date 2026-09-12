@@ -75,8 +75,8 @@ export function buildServer(store: Store) {
 
   app.get("/health", async () => ({ ok: true, t: new Date().toISOString() }));
 
-  /** Self-describing index so the public API is discoverable. */
-  app.get("/api", async () => ({
+  /** Self-describing index so the public API is discoverable. Served at both `/` and `/api`. */
+  const apiIndex = () => ({
     name: "Alam API",
     version: "v1",
     note: "Free, public, no key. Please cache; data refreshes every few minutes.",
@@ -91,7 +91,12 @@ export function buildServer(store: Store) {
       "/api/news",
     ],
     alias: "/v1/* mirrors /api/*",
-  }));
+  });
+
+  // Root is the API index too, so a bare visit (or an alert link back to the site)
+  // lands on something useful instead of a Fastify 404.
+  app.get("/", async () => apiIndex());
+  app.get("/api", async () => apiIndex());
 
   app.get("/api/stations", async () => {
     return { stations: store.stations() };

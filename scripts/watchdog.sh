@@ -10,6 +10,10 @@
 #             @reboot sleep 20 && /path/to/scripts/watchdog.sh
 set -u
 
+# Cron runs with a minimal PATH that may lack the user's node bin, and the nohup
+# subshell below inherits it. Make node/npx resolvable for both cron and manual runs.
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+
 APP_DIR="${APP_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 PORT="${PORT:-8080}"
 LOG="$APP_DIR/data/watchdog.log"
