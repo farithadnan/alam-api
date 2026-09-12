@@ -2,6 +2,10 @@ import { z } from "zod";
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
+  /** Telegram bot token for alerts. Optional: the API runs fine without it. */
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  /** Where alerts link back to. */
+  SITE_URL: z.string().default("https://ohmyalam.com"),
   DB_PATH: z.string().default("data/udara.db"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug"]).default("info"),
   /** Comma-separated DOE state ids to poll; empty = all 16 states. */
