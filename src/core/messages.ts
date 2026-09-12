@@ -96,7 +96,7 @@ export function parsePayload(payload?: string | null): { town: string; state: st
   const m = /^loc_([a-z0-9-]+)_([a-z0-9-]+)$/i.exec((payload ?? "").trim());
   if (!m) return null;
   const title = (s: string) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  return { town: title(m[1]), state: title(m[2]) };
+  return { town: title(m[1] ?? ""), state: title(m[2] ?? "") };
 }
 
 export const commands = {
