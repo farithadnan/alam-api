@@ -21,6 +21,30 @@ export interface ObservationRow {
   meta?: Record<string, unknown> | null;
 }
 
+/** A chat's alert subscription — who to alert, for which place, on which alert types. */
+export interface ChatSubscription {
+  chatId: number;
+  townSlug: string;
+  state: string;
+  place: string;
+  alertTypes: string[];
+  enabled: boolean;
+}
+
+/** One edge-trigger row: what a chat was last alerted on, per alert kind + key. */
+export interface AlertStateRow {
+  chatId: number;
+  kind: string;
+  key: string;
+  lastBand: string | null;
+  lastValue: number | null;
+  lastAlertAt: string | null;
+  lastRecoveryAt: string | null;
+}
+
+/** The alert families a subscription can opt into, in display order. */
+export const DEFAULT_ALERT_TYPES: string[] = ["aqi", "warning", "quake"];
+
 function toRow(o: Observation): SQLInputValue[] {
   return [o.source, o.station, o.stationName, o.measuredAt, o.kind, o.value, o.meta ? JSON.stringify(o.meta) : null];
 }
@@ -243,6 +267,120 @@ export class Store {
       .prepare(`SELECT district_name FROM town_districts WHERE town_slug = ?`)
       .get(townSlug) as { district_name: string } | undefined;
     return row?.district_name ?? null;
+  }
+
+  /** Every subscription, optionally only the enabled, alerted-on chats. */
+  getSubscriptions(enabledOnly = true): ChatSubscription[] {
+    const sql = `SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions${
+      enabledOnly ? " WHERE enabled = 1" : ""
+    } ORDER BY chat_id`;
+    const rows = this.db.prepare(sql).all() as Record<string, SQLOutputValue>[];
+    return rows.map((r) => ({
+      chatId: Number(r.chat_id),
+      townSlug: String(r.town_slug),
+      state: String(r.state),
+      place: String(r.place),
+      alertTypes: String(r.alert_types).split(",").filter(Boolean),
+      enabled: Number(r.enabled) === 1,
+    }));
+  }
+
+  getSubscription(chatId: number): ChatSubscription | null {
+    const r = this.db
+      .prepare(`SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions WHERE chat_id = ?`)
+      .get(chatId) as Record<string, SQLOutputValue> | undefined;
+    if (!r) return null;
+    return {
+      chatId: Number(r.chat_id),
+      townSlug: String(r.town_slug),
+      state: String(r.state),
+      place: String(r.place),
+      alertTypes: String(r.alert_types).split(",").filter(Boolean),
+      enabled: Number(r.enabled) === 1,
+    };
+  }
+
+  /** Create or fully refresh a chat's subscription. /start re-opts in with defaults. */
+  upsertSubscription(s: Omit<ChatSubscription, "enabled"> & { enabled: boolean }): void {
+    this.db
+      .prepare(
+        `INSERT INTO chat_subscriptions (chat_id, town_slug, state, place, alert_types, enabled)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(chat_id) DO UPDATE SET
+           town_slug = excluded.town_slug,
+           state     = excluded.state,
+           place     = excluded.place,
+           alert_types = excluded.alert_types,
+           enabled   = excluded.enabled,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+      )
+      .run(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0);
+  }
+
+  setChatEnabled(chatId: number, enabled: boolean): void {
+    this.db
+      .prepare(`UPDATE chat_subscriptions SET enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`)
+      .run(enabled ? 1 : 0, chatId);
+  }
+
+  setChatAlertTypes(chatId: number, alertTypes: string[], enabled = true): void {
+    this.db
+      .prepare(`UPDATE chat_subscriptions SET alert_types = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`)
+      .run(alertTypes.join(","), enabled ? 1 : 0, chatId);
+  }
+
+  /** All edge-trigger state for one chat (preload for one evaluation pass). */
+  alertStateForChat(chatId: number): AlertStateRow[] {
+    const rows = this.db
+      .prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? ORDER BY kind, key`)
+      .all(chatId) as Record<string, SQLOutputValue>[];
+    return rows.map((r) => ({
+      chatId: Number(r.chat_id),
+      kind: String(r.kind),
+      key: String(r.key),
+      lastBand: r.last_band == null ? null : String(r.last_band),
+      lastValue: r.last_value == null ? null : Number(r.last_value),
+      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at),
+      lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
+    }));
+  }
+
+  getAlertState(chatId: number, kind: string, key: string): AlertStateRow | null {
+    const r = this.db
+      .prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? AND kind = ? AND key = ?`)
+      .get(chatId, kind, key) as Record<string, SQLOutputValue> | undefined;
+    if (!r) return null;
+    return {
+      chatId: Number(r.chat_id),
+      kind: String(r.kind),
+      key: String(r.key),
+      lastBand: r.last_band == null ? null : String(r.last_band),
+      lastValue: r.last_value == null ? null : Number(r.last_value),
+      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at),
+      lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
+    };
+  }
+
+  setAlertState(row: AlertStateRow): void {
+    this.db
+      .prepare(
+        `INSERT INTO alert_state (chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(chat_id, kind, key) DO UPDATE SET
+           last_band = excluded.last_band,
+           last_value = excluded.last_value,
+           last_alert_at = excluded.last_alert_at,
+           last_recovery_at = excluded.last_recovery_at`,
+      )
+      .run(
+        row.chatId,
+        row.kind,
+        row.key,
+        row.lastBand,
+        row.lastValue,
+        row.lastAlertAt,
+        row.lastRecoveryAt,
+      );
   }
 
   close(): void {

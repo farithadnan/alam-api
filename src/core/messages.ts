@@ -109,7 +109,9 @@ export const commands = {
       "Check: /status  ·  Stop: /stop  ·  Help: /help",
     ].join("\n"),
 
-  locationPrompt: () => "📍 Where should I alert you?\nSend /location, or tap the button below.",
+  locationPrompt: () => "📍 Where should I alert you?\nSend /location followed by your town and state, e.g. /location arau perlis",
+
+  locationUnknown: (input: string) => `I don't know "${input}". Try a town and state, e.g. /location arau perlis`,
 
   locationSet: (place: string) => `✅ Location set to ${place}. I will alert you here.\n\n/status to review · /stop to turn off`,
 
@@ -129,4 +131,7 @@ export const commands = {
   stopped: () => "🔕 Alerts off. Send /start any time to turn them back on.",
 
   unknown: () => "I did not catch that. Try /location, /status, /stop or /help.",
+
+  /** Dev-only: prove the pipe end to end with a sample alert for the chat's place. */
+  debug: (place: string) => `🧪 test alert — this is what an AQI alert looks like for ${place}. No action needed.`,
 };
