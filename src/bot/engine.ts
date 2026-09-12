@@ -83,7 +83,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 }
 
 /** The DOE station serving a chat's place: name match first, then nearest to the town. */
-function pickAqiStation(sub: ChatSubscription, aqi: ObservationRow[]): ObservationRow | null {
+export function pickAqiStation(sub: ChatSubscription, aqi: ObservationRow[]): ObservationRow | null {
   const rows = aqi.filter((r) => (r.meta?.state as string | undefined) === sub.state);
   if (!rows.length) return null;
   const town = MALAYSIA_LOCALITIES.find((l) => l.slug === sub.townSlug);

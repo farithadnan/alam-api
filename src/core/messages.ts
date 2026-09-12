@@ -119,14 +119,17 @@ export const commands = {
   locationSet: (place: string) =>
     `✅ Location set to ${place}.\n\n/status  review your alerts\n/stop    pause alerts`,
 
-  status: (place: string, alerts: string[]) =>
+  status: (place: string, alerts: string[], condition?: string | null) =>
     [
       `📍 ${place}`,
+      condition ?? null,
       alerts.length ? `Alerts on: ${alerts.join(", ")}` : "No alerts on.",
       "",
       "/location  change place",
       "/stop      pause alerts",
-    ].join("\n"),
+    ]
+      .filter((l): l is string => l !== null && l !== "")
+      .join("\n"),
 
   help: () =>
     [

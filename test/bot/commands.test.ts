@@ -64,6 +64,17 @@ describe("command routing", () => {
     expect(reply(999, "/status")).toContain("Where should I alert you?");
   });
 
+  it("/status shows the live air quality for the place when a reading exists", () => {
+    reply(300, "/location pasir gudang");
+    store.ingest([
+      { source: "doe-eqms", station: "CA34J", stationName: "Pasir Gudang", measuredAt: "2026-09-12T04:00:00", kind: "aqi", value: 82, meta: { state: "Johor" } },
+    ]);
+    const st = reply(300, "/status");
+    expect(st).toContain("Pasir Gudang, Johor");
+    expect(st).toContain("Air now: Moderate · AQI 82");
+    expect(st).toContain("Alerts on: air quality, warnings, earthquakes");
+  });
+
   it("/stop disables an existing chat, /start re-enables", () => {
     reply(103, "/start loc_arau_perlis");
     expect(store.getSubscription(103)!.enabled).toBe(true);

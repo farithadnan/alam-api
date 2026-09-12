@@ -9,8 +9,10 @@
 
 import { commands } from "../core/messages.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
+import { aqiBand } from "../core/bands.js";
 import { DEFAULT_ALERT_TYPES, type Store } from "../store/db.js";
 import { resolveLocality, resolvePayload } from "./resolve.js";
+import { pickAqiStation } from "./engine.js";
 
 export interface CommandContext {
   store: Store;
@@ -74,7 +76,11 @@ export function handleMessage(ctx: CommandContext, chatId: number, text?: string
       const sub = store.getSubscription(chatId);
       if (!sub) return commands.locationPrompt();
       if (!sub.enabled) return commands.stopped();
-      return commands.status(sub.place, sub.alertTypes.map(labelFor).filter(Boolean));
+      const station = pickAqiStation(sub, store.latestBySource("doe-eqms").filter((r) => r.kind === "aqi"));
+      const condition = station
+        ? `Air now: ${aqiBand(station.value).label} · AQI ${Math.round(station.value)}`
+        : null;
+      return commands.status(sub.place, sub.alertTypes.map(labelFor).filter(Boolean), condition);
     }
 
     case "/stop": {
