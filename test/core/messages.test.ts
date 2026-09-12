@@ -71,6 +71,10 @@ describe("deep links and commands", () => {
     expect(commands.welcome()).toContain("/location");
     expect(commands.welcome("Arau, Perlis")).toContain("Watching Arau, Perlis");
   });
+  it("keeps a blank line before the command footer in status", () => {
+    expect(commands.status("Arau, Perlis", ["air quality"])).toMatch(/\n\n\/location/);
+    expect(commands.status("Arau, Perlis", ["air quality"], "Air now: Moderate · AQI 60")).toMatch(/\n\n\/location/);
+  });
   it("formats age and clock without inventing values", () => {
     expect(ago(new Date(Date.now() - 90 * 60_000).toISOString())).toBe("2h ago");
     expect(clock("2026-09-11T18:00:00+08:00")).toMatch(/6:00\s?PM/i);

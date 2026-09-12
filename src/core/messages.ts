@@ -128,7 +128,7 @@ export const commands = {
       "/location  change place",
       "/stop      pause alerts",
     ]
-      .filter((l): l is string => l !== null && l !== "")
+      .filter((l): l is string => l !== null)
       .join("\n"),
 
   help: () =>
