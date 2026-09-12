@@ -15,6 +15,23 @@ import { evaluateChat } from "./engine.js";
 
 type Log = (msg: string) => void;
 
+const MY_OFFSET_MS = 8 * 3_600_000;
+
+/** Malaysia local hour (0-23) for a timestamp — the quiet window is judged in MY time. */
+export const malaysiaHour = (now: number): number => new Date(now + MY_OFFSET_MS).getUTCHours();
+
+/**
+ * True when a Malaysia-local hour falls inside the quiet window. A window that does
+ * not cross midnight (e.g. 2-6) is inclusive-start/exclusive-end within the day; a
+ * window that crosses midnight (e.g. 23-7) also covers the early hours. An equal
+ * start/end disables quiet hours entirely.
+ */
+export function quietActive(now: number, start: number, end: number): boolean {
+  if (start === end) return false;
+  const h = malaysiaHour(now);
+  return start < end ? h >= start && h < end : h >= start || h < end;
+}
+
 /** Skip rewriting a state row that is still the same decision (band + timestamps). */
 const stateEqual = (a: AlertStateRow, b: AlertStateRow): boolean =>
   a.kind === b.kind &&
@@ -102,6 +119,7 @@ export function startNotifier(cfg: Config, store: Store, log: Log): () => void {
   let evaluating = false;
   async function cycle(): Promise<void> {
     if (stopped || !booted || evaluating) return;
+    if (quietActive(Date.now(), cfg.ALERT_QUIET_START, cfg.ALERT_QUIET_END)) return; // overnight: stay silent
     evaluating = true;
     try {
       await runCycle(client, store, cfg.SITE_URL, log);

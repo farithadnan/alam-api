@@ -9,6 +9,12 @@
  * Contract: a steady level sends exactly one message — a multi-day haze in an
  * "Unhealthy" band alerts once on the way in and sends one recovery when it clears.
  * Only actual *crossings* (a move into a worse band, or a return to clean air) fire.
+ *
+ * Cold start: a chat's first evaluation (no persisted state yet) settles a silent
+ * baseline — it marks whatever is currently present as already seen and sends nothing,
+ * so the notifier never dumps a backlog of historical warnings/quakes at a brand-new
+ * subscriber. Only genuinely new events after that alert. (The one exception: air that
+ * is *already* unhealthy at first contact gets a single current-condition alert.)
  */
 
 import { aqiBand } from "../core/bands.js";
@@ -53,12 +59,14 @@ export interface EvaluateResult {
   next: AlertStateRow[];
 }
 
+/** A warning is identified by its title *and* issue time, so a re-issued warning of
+ * the same type is a new alert rather than being swallowed by the last one. */
+export const warningKey = (w: ObservationRow): string => `${w.station}|${w.measuredAt}`;
+
 export function bandIndex(label: string): number {
   const i = BAND_ORDER.indexOf(label as (typeof BAND_ORDER)[number]);
   return i < 0 ? -1 : i;
 }
-
-const coalesceCooldown = (input: EvaluateInput): number => input.cooldownMs ?? ALERT_COOLDOWN_MS;
 
 const cooldownOk = (lastIso: string | null | undefined, now: number, cd: number): boolean =>
   !lastIso || now - Date.parse(lastIso) >= cd;
@@ -126,9 +134,17 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
   const { sub, prev, now: nowInput, url } = input;
   const now = nowInput ?? Date.now();
   const nowIso = new Date(now).toISOString();
-  const cd = coalesceCooldown(input);
+  const cd = input.cooldownMs ?? ALERT_COOLDOWN_MS;
+  // A chat with no persisted state is settling in: baseline, don't dump history.
+  const coldStart = prev.length === 0;
   const state = new Map<string, AlertStateRow>(prev.map((r) => [`${r.kind}:${r.key}`, r]));
   const enabled = (t: string) => sub.alertTypes.includes(t);
+  // Push a state row AND add it to the seen-set, so two records of the same key in a
+  // single pass do not both alert (the newsletter-style burst is blocked here).
+  const record = (row: AlertStateRow): void => {
+    out.next.push(row);
+    state.set(`${row.kind}:${row.key}`, row);
+  };
 
   // AQI — the headline alert type.
   if (enabled("aqi")) {
@@ -150,45 +166,46 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
       };
 
       if (curIdx >= ALERT_BAND_INDEX) {
-        const firstSeen = prior == null;
-        const worsenedFromClean = firstSeen || prevIdx < ALERT_BAND_INDEX;
-        const climbedWithin = !worsenedFromClean && curIdx > prevIdx;
-        // A deterioration to a worse band always informs; re-entering the alert tier
-        // is gated by the cooldown so rapid flapping does not nag.
-        if (firstSeen || climbedWithin || (worsenedFromClean && cooldownOk(fresh.lastAlertAt, now, cd))) {
-          out.send.push({
-            chatId: sub.chatId,
-            text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice, url }),
-          });
+        if (coldStart) {
+          // First contact and the air is already poor: one current-condition alert,
+          // then settle the baseline so this level is never re-nagged.
+          out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice, url }) });
           fresh.lastAlertAt = nowIso;
+        } else {
+          const worsenedFromClean = prior == null || prevIdx < ALERT_BAND_INDEX;
+          const climbedWithin = !worsenedFromClean && curIdx > prevIdx;
+          // A deterioration to a worse band always informs; re-entering the alert tier
+          // is gated by the cooldown so rapid flapping does not nag.
+          if (prior == null || climbedWithin || (worsenedFromClean && cooldownOk(fresh.lastAlertAt, now, cd))) {
+            out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice, url }) });
+            fresh.lastAlertAt = nowIso;
+          }
         }
-        out.next.push(fresh);
+        record(fresh);
       } else {
         // Clean band: the recovery fires once, on the first return from an alert level.
-        const recovering = prior != null && prevIdx >= ALERT_BAND_INDEX;
+        const recovering = !coldStart && prior != null && prevIdx >= ALERT_BAND_INDEX;
         if (recovering && cooldownOk(fresh.lastRecoveryAt, now, cd)) {
-          out.send.push({
-            chatId: sub.chatId,
-            text: aqiRecoveredMsg({ value: st.value, band, place: sub.place, url }),
-          });
+          out.send.push({ chatId: sub.chatId, text: aqiRecoveredMsg({ value: st.value, band, place: sub.place, url }) });
           fresh.lastRecoveryAt = nowIso;
         }
-        out.next.push(fresh);
+        record(fresh);
       }
     }
   }
 
-  // Warnings — one message per distinct warning for the chat's place.
+  // Warnings — one message per distinct issuance for the chat's place. On cold start
+  // the existing feed is folded into the baseline (marked seen, nothing sent), so a
+  // subscriber never gets a backlog of old bulletins.
   if (enabled("warning")) {
     for (const w of warningHits(sub, input.warnings)) {
-      const key = w.station;
-      const prior = state.get(`warning:${key}`);
-      if (prior?.lastAlertAt) continue; // already told about this one
-      out.send.push({
-        chatId: sub.chatId,
-        text: warningMsg({ title: w.stationName, place: sub.place, issuedAt: w.measuredAt, validUntil: validUntil(w), url }),
-      });
-      out.next.push({ chatId: sub.chatId, kind: "warning", key, lastBand: null, lastValue: w.value, lastAlertAt: nowIso, lastRecoveryAt: null });
+      const key = warningKey(w);
+      if (state.get(`warning:${key}`)?.lastAlertAt) continue;
+      const row: AlertStateRow = { chatId: sub.chatId, kind: "warning", key, lastBand: null, lastValue: w.value, lastAlertAt: nowIso, lastRecoveryAt: null };
+      if (!coldStart) {
+        out.send.push({ chatId: sub.chatId, text: warningMsg({ title: w.stationName, place: sub.place, issuedAt: w.measuredAt, validUntil: validUntil(w), url }) });
+      }
+      record(row);
     }
   }
 
@@ -198,17 +215,17 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
     if (town) {
       for (const q of input.quakes) {
         if (q.kind !== "quake" || q.value < QUAKE_MIN_MAG) continue;
-        const key = q.station;
+        const key = q.station; // USGS event id — already unique per event
         if (state.get(`quake:${key}`)?.lastAlertAt) continue;
         const lat = q.meta?.lat as number | undefined;
         const lon = q.meta?.lon as number | undefined;
         if (typeof lat !== "number" || typeof lon !== "number") continue;
         if (haversineKm(town.lat, town.lon, lat, lon) > QUAKE_MAX_KM) continue;
-        out.send.push({
-          chatId: sub.chatId,
-          text: quakeMsg({ magnitude: q.value, place: q.stationName, depthKm: (q.meta?.depth as number | null | undefined) ?? null, at: q.measuredAt, url }),
-        });
-        out.next.push({ chatId: sub.chatId, kind: "quake", key, lastBand: null, lastValue: q.value, lastAlertAt: nowIso, lastRecoveryAt: null });
+        const row: AlertStateRow = { chatId: sub.chatId, kind: "quake", key, lastBand: null, lastValue: q.value, lastAlertAt: nowIso, lastRecoveryAt: null };
+        if (!coldStart) {
+          out.send.push({ chatId: sub.chatId, text: quakeMsg({ magnitude: q.value, place: q.stationName, depthKm: (q.meta?.depth as number | null | undefined) ?? null, at: q.measuredAt, url }) });
+        }
+        record(row);
       }
     }
   }

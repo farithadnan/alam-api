@@ -21,6 +21,9 @@ const schema = z.object({
   NEWSDATA_API_KEY: z.string().optional(),
   /** MET's official district forecast changes once a day. */
   POLL_METFC_SECONDS: z.coerce.number().int().positive().default(21600),
+  /** Telegram alerts are silent overnight (Malaysia local time). Inclusive start, exclusive end. */
+  ALERT_QUIET_START: z.coerce.number().int().min(0).max(23).default(23),
+  ALERT_QUIET_END: z.coerce.number().int().min(0).max(23).default(7),
 });
 
 export type Config = z.infer<typeof schema>;
