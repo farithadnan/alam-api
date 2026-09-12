@@ -14,6 +14,7 @@
 
 import { fetchJson } from "../util/http.js";
 import { MY_OFFSET_MS } from "../core/constants.js";
+import { MALAYSIA_STATES } from "../core/states.js";
 import type { Adapter } from "./types.js";
 import type { Observation } from "../core/types.js";
 
@@ -53,6 +54,13 @@ const num = (s?: string | null): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/** The feed reports states uppercase ("JOHOR"); store the canonical case the whole
+ * app uses ("Johor") so dashboard ?state= and the alert engine can match directly. */
+function canonicalState(raw?: string | null): string | null {
+  const hit = MALAYSIA_STATES.find((s) => s.name.toUpperCase() === (raw ?? "").trim().toUpperCase());
+  return hit?.name ?? (raw?.trim() || null);
+}
+
 /** Parse Malaysia-local "DD/MM/YYYY HH:MM" (UTC+8, no DST) to a UTC epoch; null if malformed. */
 export function parseMyDateTime(ts?: string | null): number | null {
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/.exec((ts ?? "").trim());
@@ -74,7 +82,7 @@ function baseObs(r: FloodAlertRecord, type: "river" | "rain"): Observation | nul
     value: 0,
     meta: {
       type,
-      state: r.state ?? null,
+      state: canonicalState(r.state),
       district: r.district ?? null,
       basin: r.main_basin ?? null,
       trend: r.trend ?? null,

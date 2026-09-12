@@ -19,7 +19,7 @@
 
 import { aqiBand } from "../core/bands.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
-import { aqiMsg, aqiRecoveredMsg, warningMsg, quakeMsg } from "../core/messages.js";
+import { aqiMsg, aqiRecoveredMsg, warningMsg, quakeMsg, floodMsg, rainMsg } from "../core/messages.js";
 import type { ObservationRow } from "../store/db.js";
 import type { ChatSubscription, AlertStateRow } from "../store/db.js";
 
@@ -47,6 +47,10 @@ export interface EvaluateInput {
   warnings: ObservationRow[];
   /** Latest USGS quakes (kind "quake"). */
   quakes: ObservationRow[];
+  /** Latest InfoBanjir flood alerts (kind "flood" — river levels in an alert band). */
+  flood: ObservationRow[];
+  /** Latest InfoBanjir heavy-rain alerts (kind "rainfall"). */
+  rainfall: ObservationRow[];
   /** Where alerts link back to (site base URL). */
   url: string;
   now?: number;
@@ -228,6 +232,37 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
         record(row);
       }
     }
+  }
+
+  // InfoBanjir flood + heavy-rain alerts: the feed lists only stations currently in an
+  // alert band, so "present in the feed" IS the trigger. Alert once on first appearance
+  // (dedup by station, persisted) and reset a station's record when it leaves the feed,
+  // so a later recurrence alerts again instead of being swallowed forever.
+  if (enabled("flood")) {
+    const evaluateFeed = (kind: "flood" | "rainfall", rows: ObservationRow[], build: (r: ObservationRow) => string): void => {
+      const scoped = rows.filter((r) => r.meta?.state === sub.state);
+      const current = new Set(scoped.map((r) => r.station));
+      for (const row of scoped) {
+        const key = row.station;
+        const prior = state.get(`${kind}:${key}`);
+        const next: AlertStateRow = { chatId: sub.chatId, kind, key, lastBand: null, lastValue: row.value, lastAlertAt: prior?.lastAlertAt ?? null, lastRecoveryAt: null };
+        if (!prior?.lastAlertAt) {
+          if (!coldStart) out.send.push({ chatId: sub.chatId, text: build(row) });
+          next.lastAlertAt = nowIso;
+        }
+        record(next);
+      }
+      for (const prior of prev) {
+        if (prior.kind !== kind) continue;
+        if (!current.has(prior.key)) {
+          record({ chatId: sub.chatId, kind, key: prior.key, lastBand: null, lastValue: prior.lastValue, lastAlertAt: null, lastRecoveryAt: null });
+        }
+      }
+    };
+    evaluateFeed("flood", input.flood, (r) =>
+      floodMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, level: r.value, severity: String(r.meta?.severity ?? ""), trend: r.meta?.trend as string | undefined, url }));
+    evaluateFeed("rainfall", input.rainfall, (r) =>
+      rainMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, mmHour: r.value, severity: String(r.meta?.severity ?? ""), url }));
   }
 
   return out;

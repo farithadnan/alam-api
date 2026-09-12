@@ -47,11 +47,13 @@ async function runCycle(client: TelegramClient, store: Store, url: string, log: 
   const aqi = store.latestBySource("doe-eqms").filter((r) => r.kind === "aqi");
   const warnings = store.latestByKind("warning");
   const quakes = store.latestByKind("quake");
+  const flood = store.latestByKind("flood");
+  const rainfall = store.latestByKind("rainfall");
 
   let sent = 0;
   for (const sub of subs) {
     const prev = store.alertStateForChat(sub.chatId);
-    const res = evaluateChat({ sub, prev, aqi, warnings, quakes, url });
+    const res = evaluateChat({ sub, prev, aqi, warnings, quakes, flood, rainfall, url });
     for (const m of res.send) {
       try {
         await client.sendMessage(m.chatId, m.text);

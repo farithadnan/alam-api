@@ -48,7 +48,7 @@ const quake = (id: string, mag: number, lat: number, lon: number): ObservationRo
 const evalChat = (
   sub: ChatSubscription,
   prev: AlertStateRow[],
-  o: { aqi?: ObservationRow[]; warnings?: ObservationRow[]; quakes?: ObservationRow[]; now?: number } = {},
+  o: { aqi?: ObservationRow[]; warnings?: ObservationRow[]; quakes?: ObservationRow[]; flood?: ObservationRow[]; rainfall?: ObservationRow[]; now?: number } = {},
 ) =>
   evaluateChat({
     sub,
@@ -56,6 +56,8 @@ const evalChat = (
     aqi: o.aqi ?? [],
     warnings: o.warnings ?? [],
     quakes: o.quakes ?? [],
+    flood: o.flood ?? [],
+    rainfall: o.rainfall ?? [],
     url: "https://ohmyalam.com",
     now: o.now ?? T0,
   });
@@ -200,6 +202,59 @@ describe("quakes", () => {
 
   it("silences a quake too far from the place", () => {
     const r = evalChat(SUB, [], { quakes: [quake("usgC", 5.6, 20, 130)] });
+    expect(r.send).toHaveLength(0);
+  });
+});
+
+describe("InfoBanjir flood + heavy rain", () => {
+  const JOHOR = { ...SUB, state: "Johor", townSlug: "pasir-gudang", place: "Pasir Gudang, Johor", alertTypes: ["flood"] };
+  const river = (station = "ST-A"): ObservationRow => ({
+    source: "infobanjir", station, stationName: "Sg. Test", measuredAt: iso(T0), kind: "flood", value: 2.4,
+    meta: { state: "Johor", district: "Muar", severity: "Danger", trend: "Rising", lat: 2, lon: 102 },
+  });
+  const rain = (station = "RF-A"): ObservationRow => ({
+    source: "infobanjir", station, stationName: "Rain Gauge 1", measuredAt: iso(T0), kind: "rainfall", value: 45,
+    meta: { state: "Johor", district: "Muar", severity: "Heavy" },
+  });
+
+  it("baselines existing alerts silently, dedups while present, and re-alerts after they clear", () => {
+    let prev: AlertStateRow[] = [];
+    // Cold start: the feed's existing alerts are folded in quietly (no dump).
+    let r = evalChat(JOHOR, prev, { flood: [river()] });
+    expect(r.send).toHaveLength(0);
+    prev = prev.concat(r.next);
+    // Still present: no repeat.
+    r = evalChat(JOHOR, prev, { flood: [river()] });
+    expect(r.send).toHaveLength(0);
+    prev = prev.concat(r.next);
+    // Station left the feed (cleared): record resets.
+    r = evalChat(JOHOR, prev, { flood: [] });
+    expect(r.send).toHaveLength(0);
+    prev = prev.concat(r.next);
+    // Recurrence: alerts again, once.
+    r = evalChat(JOHOR, prev, { flood: [river()] });
+    expect(r.send).toHaveLength(1);
+    expect(r.send[0]!.text).toContain("River flood alert");
+    expect(r.send[0]!.text).toContain("Sg. Test");
+    expect(r.send[0]!.text).toContain("Danger");
+  });
+
+  it("alerts heavy rain once per station, deduped while present", () => {
+    const r1 = evalChat(JOHOR, [], { rainfall: [rain("RF-OLD")] }); // cold start baseline
+    expect(r1.send).toHaveLength(0);
+    // A NEW station appears after the baseline: it alerts, once.
+    const r2 = evalChat(JOHOR, r1.next, { rainfall: [rain("RF-OLD"), rain("RF-NEW")] });
+    expect(r2.send).toHaveLength(1);
+    expect(r2.send[0]!.text).toContain("Heavy rain");
+    expect(r2.send[0]!.text).toContain("45");
+    // Still present: no repeat.
+    const again = evalChat(JOHOR, r2.next, { rainfall: [rain("RF-NEW")] });
+    expect(again.send).toHaveLength(0);
+  });
+
+  it("ignores flood alerts for another state", () => {
+    const PERLIS = { ...JOHOR, state: "Perlis", townSlug: "arau", place: "Arau, Perlis", alertTypes: ["flood"] };
+    const r = evalChat(PERLIS, [], { flood: [river()] }); // river() is Johor
     expect(r.send).toHaveLength(0);
   });
 });

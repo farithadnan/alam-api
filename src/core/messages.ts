@@ -113,6 +113,41 @@ export function quakeMsg({ magnitude, place, depthKm, at, word, url }: QuakeInpu
   return `${b(head)}\n${detail}\n\n${link(url)}`;
 }
 
+export interface FloodInput {
+  place: string;
+  station: string;
+  district?: string | null;
+  level: number;
+  severity: string;
+  trend?: string | null;
+  url?: string;
+}
+
+/** A river has crossed into a flood alert band (Danger / Warning / Alert). */
+export function floodMsg({ place, station, district, level, severity, trend, url }: FloodInput): string {
+  const lines = [b("🚨 River flood alert"), `${esc(station)} (${esc(place)})`];
+  if (district) lines.push(esc(district));
+  lines.push(`Level ${esc(String(level))} m · ${esc(severity)}${trend ? ` · ${esc(trend)}` : ""}`);
+  return `${lines.join("\n")}\n\n${link(url)}`;
+}
+
+export interface RainInput {
+  place: string;
+  station: string;
+  district?: string | null;
+  mmHour: number;
+  severity: string;
+  url?: string;
+}
+
+/** Heavy rainfall in your area. */
+export function rainMsg({ place, station, district, mmHour, severity, url }: RainInput): string {
+  const lines = [b("🌧 Heavy rain"), `${esc(station)} (${esc(place)})`];
+  if (district) lines.push(esc(district));
+  lines.push(`${esc(String(mmHour))} mm/hr · ${esc(severity)}`);
+  return `${lines.join("\n")}\n\n${link(url)}`;
+}
+
 /** Deep-link payload from /start, e.g. "loc_arau_perlis" -> Arau, Perlis. */
 export function parsePayload(payload?: string | null): { town: string; state: string } | null {
   const m = /^loc_([a-z0-9-]+)_([a-z0-9-]+)$/i.exec((payload ?? "").trim());

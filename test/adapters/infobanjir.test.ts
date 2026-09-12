@@ -46,7 +46,7 @@ describe("InfobanjirAdapter (InfoBanjir current alerts)", () => {
     expect(flood.map((r) => r.value).sort()).toEqual([1.5, 2]);
     expect(rain.map((r) => r.value).sort()).toEqual([18, 42]);
 
-    expect(flood.find((r) => r.value === 2)?.meta).toMatchObject({ severity: "Warning", state: "JOHOR", type: "river" });
+    expect(flood.find((r) => r.value === 2)?.meta).toMatchObject({ severity: "Warning", state: "Johor", type: "river" });
     expect(rain.find((r) => r.value === 18)?.meta).toMatchObject({ severity: "Moderate", type: "rain" });
     expect(flood.find((r) => r.value === 1.5)?.meta).toMatchObject({ lat: 1.97, lon: 102.71 });
   });

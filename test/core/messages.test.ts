@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { warningMsg, aqiMsg, aqiRecoveredMsg, quakeMsg, parsePayload, commands, ago, clock } from "../../src/core/messages.js";
+import { warningMsg, aqiMsg, aqiRecoveredMsg, quakeMsg, parsePayload, commands, ago, clock, floodMsg, rainMsg } from "../../src/core/messages.js";
 
 describe("alert messages — one fact first, place, short, link", () => {
   it("leads a warning with the fact and the place", () => {
@@ -47,6 +47,22 @@ describe("alert messages — one fact first, place, short, link", () => {
 
   it("honours a SITE_URL override", () => {
     expect(aqiMsg({ value: 10, band: "Good", place: "X", url: "https://staging.example.com" })).toContain("staging.example.com");
+  });
+});
+
+describe("flood and heavy rain alerts", () => {
+  it("states the river alert plainly with level, severity and link", () => {
+    const t = floodMsg({ place: "Muar, Johor", station: "Sg. Test", district: "Muar", level: 2.4, severity: "Danger", trend: "Rising", url: "https://ohmyalam.com" });
+    expect(t).toContain("River flood alert");
+    expect(t).toContain("Sg. Test");
+    expect(t).toContain("Level 2.4 m · Danger · Rising");
+    expect(t).toContain("ohmyalam.com");
+    expect(t.split("\n").length).toBeLessThanOrEqual(6);
+  });
+  it("states the heavy-rain value and severity", () => {
+    const t = rainMsg({ place: "Muar, Johor", station: "Gauge 1", mmHour: 45, severity: "Heavy", url: "https://ohmyalam.com" });
+    expect(t).toContain("Heavy rain");
+    expect(t).toContain("45 mm/hr · Heavy");
   });
 });
 

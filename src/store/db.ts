@@ -43,7 +43,7 @@ export interface AlertStateRow {
 }
 
 /** The alert families a subscription can opt into, in display order. */
-export const DEFAULT_ALERT_TYPES: string[] = ["aqi", "warning", "quake"];
+export const DEFAULT_ALERT_TYPES: string[] = ["aqi", "warning", "quake", "flood"];
 
 function toRow(o: Observation): SQLInputValue[] {
   return [o.source, o.station, o.stationName, o.measuredAt, o.kind, o.value, o.meta ? JSON.stringify(o.meta) : null];
