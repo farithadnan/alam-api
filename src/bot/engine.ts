@@ -31,6 +31,8 @@ export const ALERT_COOLDOWN_MS = 30 * 60_000;
 /** Only quakes at/above this magnitude and within this many km of the place are surfaced. */
 export const QUAKE_MIN_MAG = 5.0;
 export const QUAKE_MAX_KM = 400;
+/** Flood/rain alerts only within this many km of the user's town (state still required). */
+export const FLOOD_MAX_KM = 100;
 
 export interface OutboundAlert {
   chatId: number;
@@ -240,7 +242,19 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
   // so a later recurrence alerts again instead of being swallowed forever.
   if (enabled("flood")) {
     const evaluateFeed = (kind: "flood" | "rainfall", rows: ObservationRow[], build: (r: ObservationRow) => string): void => {
-      const scoped = rows.filter((r) => r.meta?.state === sub.state);
+      const town = MALAYSIA_LOCALITIES.find((l) => l.slug === sub.townSlug);
+      const scoped = rows.filter((r) => {
+        if (r.meta?.state !== sub.state) return false;
+        // Scope to near the user's town (like quakes) so a river far across the
+        // state does not nag someone whose place is nowhere near it. A station
+        // without coordinates still counts, so we never under-alert.
+        const lat = r.meta?.lat as number | undefined;
+        const lon = r.meta?.lon as number | undefined;
+        if (town && typeof lat === "number" && typeof lon === "number") {
+          return haversineKm(town.lat, town.lon, lat, lon) <= FLOOD_MAX_KM;
+        }
+        return true;
+      });
       const current = new Set(scoped.map((r) => r.station));
       for (const row of scoped) {
         const key = row.station;

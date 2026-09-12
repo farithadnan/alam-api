@@ -210,11 +210,11 @@ describe("InfoBanjir flood + heavy rain", () => {
   const JOHOR = { ...SUB, state: "Johor", townSlug: "pasir-gudang", place: "Pasir Gudang, Johor", alertTypes: ["flood"] };
   const river = (station = "ST-A"): ObservationRow => ({
     source: "infobanjir", station, stationName: "Sg. Test", measuredAt: iso(T0), kind: "flood", value: 2.4,
-    meta: { state: "Johor", district: "Muar", severity: "Danger", trend: "Rising", lat: 2, lon: 102 },
+    meta: { state: "Johor", district: "Johor Bahru", severity: "Danger", trend: "Rising", lat: 1.5, lon: 103.9 },
   });
   const rain = (station = "RF-A"): ObservationRow => ({
     source: "infobanjir", station, stationName: "Rain Gauge 1", measuredAt: iso(T0), kind: "rainfall", value: 45,
-    meta: { state: "Johor", district: "Muar", severity: "Heavy" },
+    meta: { state: "Johor", district: "Johor Bahru", severity: "Heavy", lat: 1.5, lon: 103.9 },
   });
 
   it("baselines existing alerts silently, dedups while present, and re-alerts after they clear", () => {
@@ -255,6 +255,18 @@ describe("InfoBanjir flood + heavy rain", () => {
   it("ignores flood alerts for another state", () => {
     const PERLIS = { ...JOHOR, state: "Perlis", townSlug: "arau", place: "Arau, Perlis", alertTypes: ["flood"] };
     const r = evalChat(PERLIS, [], { flood: [river()] }); // river() is Johor
+    expect(r.send).toHaveLength(0);
+  });
+
+  it("ignores a same-state flood alert too far from the town", () => {
+    // Settle the baseline with a near river (cold start sends nothing).
+    let prev: AlertStateRow[] = [];
+    let r = evalChat(JOHOR, prev, { flood: [river()] });
+    expect(r.send).toHaveLength(0);
+    prev = prev.concat(r.next);
+    // Same state, but ~160 km away (Muar): must NOT alert the Pasir Gudang user.
+    const far = { ...river("ST-FAR"), meta: { ...river().meta, district: "Muar", lat: 2.05, lon: 102.57 } };
+    r = evalChat(JOHOR, prev, { flood: [river(), far] });
     expect(r.send).toHaveLength(0);
   });
 });

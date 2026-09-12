@@ -125,8 +125,7 @@ export interface FloodInput {
 
 /** A river has crossed into a flood alert band (Danger / Warning / Alert). */
 export function floodMsg({ place, station, district, level, severity, trend, url }: FloodInput): string {
-  const lines = [b("🚨 River flood alert"), `${esc(station)} (${esc(place)})`];
-  if (district) lines.push(esc(district));
+  const lines = [b("🚨 River flood alert"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`Level ${esc(String(level))} m · ${esc(severity)}${trend ? ` · ${esc(trend)}` : ""}`);
   return `${lines.join("\n")}\n\n${link(url)}`;
 }
@@ -142,8 +141,7 @@ export interface RainInput {
 
 /** Heavy rainfall in your area. */
 export function rainMsg({ place, station, district, mmHour, severity, url }: RainInput): string {
-  const lines = [b("🌧 Heavy rain"), `${esc(station)} (${esc(place)})`];
-  if (district) lines.push(esc(district));
+  const lines = [b("🌧 Heavy rain"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`${esc(String(mmHour))} mm/hr · ${esc(severity)}`);
   return `${lines.join("\n")}\n\n${link(url)}`;
 }
