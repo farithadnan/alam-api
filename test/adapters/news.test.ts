@@ -20,6 +20,8 @@ describe("news relevance — the headline decides", () => {
       "Nepal to host regional summit next month",
       "Ringgit strengthens against the dollar",
       "New MRT line opens to commuters",
+      "Bolivia hapus subsidi bahan api demi bantuan IMF", // 'bahan api' = fuel, not fire
+      "Ringgit ends lower against the US dollar",
       "Malaysian badminton eye ending 20-year Asian Games title drought",
     ]) expect(relevance(t), t).toBe(false);
   });

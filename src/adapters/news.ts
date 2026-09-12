@@ -9,7 +9,7 @@ import type { Observation } from "../core/types.js";
  * Malaysia Open"), so only specific hazard terms count.
  */
 const KEYWORDS =
-  /\b(flood|floods|flooding|flash flood|haze|hazy|jerebu|banjir|thunderstorm|thunderstorms|ribut petir|monsoon|drought|kemarau|heatwave|heat wave|earthquake|quake|gempa|tsunami|landslide|tanah runtuh|mudslide|typhoon|cyclone|aqi|air quality|air pollution|el niño|el nino|la niña|la nina|heavy rain|hujan lebat|weather warning|amaran cuaca|severe weather|api|kabus)\b/i;
+  /\b(flood|floods|flooding|flash flood|haze|hazy|jerebu|banjir|thunderstorm|thunderstorms|ribut petir|monsoon|drought|kemarau|heatwave|heat wave|earthquake|quake|gempa|tsunami|landslide|tanah runtuh|mudslide|typhoon|cyclone|aqi|air quality|air pollution|el niño|el nino|la niña|la nina|heavy rain|hujan lebat|weather warning|amaran cuaca|severe weather|kabus|kebakaran hutan|forest fire|hotspot)\b/i;
 
 interface Feed {
   outlet: string;
