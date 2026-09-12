@@ -54,6 +54,7 @@ last poll is recorded in SQLite, so a restart does not re-fetch anything still f
 | MET district forecast | 6 h | 170 districts x 7 days, official text |
 | News | 30 min | RSS (Free Malaysia Today, NST, Utusan) + optional newsdata.io |
 | NOAA ONI | 24 h | El Nino / La Nina phase |
+| InfoBanjir flood + rain | 5 min | JPS current-alert feed; stale/offline stations dropped |
 
 Writes are append-only and idempotent (`UNIQUE(source, station, measured_at, kind)`
 with `INSERT OR IGNORE`), which yields history for trends, resilience to upstream
@@ -105,6 +106,7 @@ per IP, with `x-ratelimit-*` headers.
 | `GET /api/forecast?state=` | model forecast |
 | `GET /api/stations` | distinct sources/stations |
 | `GET /api/hazards` | earthquakes, climate, warnings |
+| `GET /api/flood` | current river-level + heavy-rain alerts, freshness-gated; `?state=` narrows |
 | `GET /api/summary?state=&town=&towns=` | one bundle for the dashboard, scoped to a town |
 | `GET /api/official?state=&town=&district=` | MET district forecast; `town` resolves the district for you |
 | `GET /api/news` | recent Malaysian weather/hazard news |
