@@ -284,13 +284,25 @@ export function buildServer(store: Store, dashboardDist = "") {
   app.get("/api/flood", async (req) => {
     const q = req.query as { state?: string };
     const scope = (rows: ObservationRow[]) => (q.state ? rows.filter((r) => r.meta?.state === q.state) : rows);
+    // The InfoBanjir watchlist can list a station more than once; surface one row
+    // per station — the worst current severity — so the dashboard never shows dupes.
+    const rank = { Danger: 0, Warning: 1, Alert: 2, Moderate: 3, Heavy: 3 };
+    const worst = (rows: ObservationRow[]) => {
+      const seen = new Map<string, ObservationRow>();
+      for (const r of rows) {
+        const cur = seen.get(r.station);
+        const rk = rank[(r.meta?.severity as keyof typeof rank) ?? ""] ?? 9;
+        if (!cur || rk < (rank[(cur.meta?.severity as keyof typeof rank) ?? ""] ?? 9)) seen.set(r.station, r);
+      }
+      return [...seen.values()];
+    };
     return {
-      river: scope(store.latestByKind("flood")).map((r) => ({
+      river: worst(scope(store.latestByKind("flood"))).map((r) => ({
         station: r.station, stationName: r.stationName, state: r.meta?.state, district: r.meta?.district,
         basin: r.meta?.basin, level: r.value, severity: r.meta?.severity, trend: r.meta?.trend,
         lat: r.meta?.lat, lon: r.meta?.lon, at: r.measuredAt,
       })),
-      rain: scope(store.latestByKind("rainfall")).map((r) => ({
+      rain: worst(scope(store.latestByKind("rainfall"))).map((r) => ({
         station: r.station, stationName: r.stationName, state: r.meta?.state, district: r.meta?.district,
         mmHour: r.value, severity: r.meta?.severity, lat: r.meta?.lat, lon: r.meta?.lon, at: r.measuredAt,
       })),
