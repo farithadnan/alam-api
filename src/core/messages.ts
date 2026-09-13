@@ -193,6 +193,7 @@ export const commands = {
       alerts.length ? `Alerts on: ${alerts.map(esc).join(", ")}` : "No alerts on.",
       "",
       commandsBlock([
+        ["/alerts", "choose alert types"],
         ["/location", "change place"],
         ["/stop", "pause alerts"],
       ]),
@@ -200,14 +201,28 @@ export const commands = {
       .filter((l): l is string => l !== null)
       .join("\n"),
 
+  alertsShow: (alerts: string[]) =>
+    [
+      alerts.length ? b(`Alerts on: ${alerts.map(esc).join(", ")}`) : b("All alerts off"),
+      "",
+      "Choose what I message you. Types: air quality, warnings, earthquakes, river and rain.",
+      "",
+      commandsBlock([
+        ["/alerts aqi flood", "only air + river & rain"],
+        ["/alerts +quake -warnings", "toggle one"],
+        ["/alerts all", "everything"],
+      ]),
+    ].join("\n"),
+
   help: () =>
     [
       b("Alam alerts"),
       "",
-      "One message when something changes: air quality crossing into an unhealthy band, a warning issued, or a significant quake near you.",
+      "One message when something changes: air quality crossing into an unhealthy band, a warning issued, a significant quake, or a river near you reaching alert level.",
       "",
       commandsBlock([
         ["/location", "set your place"],
+        ["/alerts", "choose alert types"],
         ["/status", "your place and your alerts"],
         ["/stop", "pause alerts"],
         ["/help", "more"],

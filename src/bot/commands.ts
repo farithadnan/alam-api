@@ -83,6 +83,40 @@ export function handleMessage(ctx: CommandContext, chatId: number, text?: string
       return commands.status(sub.place, sub.alertTypes.map(labelFor).filter(Boolean), condition);
     }
 
+    case "/alerts": {
+      const sub = store.getSubscription(chatId);
+      if (!sub) return commands.locationPrompt();
+      const TOKEN: Record<string, string[]> = {
+        aqi: ["aqi", "air", "airquality"],
+        warning: ["warning", "warn", "warnings"],
+        quake: ["quake", "earthquake", "earthquakes"],
+        flood: ["flood", "floods", "rain", "river"],
+      };
+      const tokens = cmd.arg.toLowerCase().split(/[,\s]+/).filter(Boolean);
+      if (!tokens.length) return commands.alertsShow(sub.alertTypes.map(labelFor));
+      if (tokens.length === 1 && tokens[0] === "all") {
+        store.setChatAlertTypes(chatId, [...DEFAULT_ALERT_TYPES]);
+        return commands.alertsShow(DEFAULT_ALERT_TYPES.map(labelFor));
+      }
+      if (tokens.length === 1 && tokens[0] === "none") {
+        store.setChatAlertTypes(chatId, []);
+        return commands.alertsShow([]);
+      }
+      // A bare list (e.g. "aqi flood") replaces the selection; +x / -x toggle on top.
+      const hasBare = tokens.some((t) => !t.startsWith("+") && !t.startsWith("-"));
+      const next = new Set<string>(hasBare ? [] : sub.alertTypes);
+      for (const t of tokens) {
+        const rem = t.startsWith("-");
+        const key = t.replace(/^[+-]/, "");
+        const type = Object.keys(TOKEN).find((k) => (TOKEN as Record<string, string[]>)[k]?.includes(key));
+        if (!type) continue;
+        if (rem) next.delete(type);
+        else next.add(type); // a bare token (or +token) switches it on
+      }
+      store.setChatAlertTypes(chatId, [...next]);
+      return commands.alertsShow([...next].map(labelFor));
+    }
+
     case "/stop": {
       if (store.getSubscription(chatId)) store.setChatEnabled(chatId, false);
       return commands.stopped();

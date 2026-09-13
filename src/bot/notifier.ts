@@ -54,12 +54,19 @@ async function runCycle(client: TelegramClient, store: Store, url: string, log: 
   for (const sub of subs) {
     const prev = store.alertStateForChat(sub.chatId);
     const res = evaluateChat({ sub, prev, aqi, warnings, quakes, flood, rainfall, url });
-    for (const m of res.send) {
+    // Batch: a chat with several new alerts in one pass gets ONE composed message,
+    // so a multiple-alert cycle reads as a summary instead of a burst of DMs.
+    const texts = res.send.map((m) => m.text);
+    if (texts.length) {
+      const body: string =
+        texts.length === 1
+          ? (texts[0] as string)
+          : `🔔 ${texts.length} new alert${texts.length > 1 ? "s" : ""} for you\n\n${texts.join("\n\n")}`;
       try {
-        await client.sendMessage(m.chatId, m.text);
+        await client.sendMessage(sub.chatId, body);
         sent++;
       } catch (err) {
-        log(`[notifier] send failed for chat ${m.chatId}: ${err instanceof Error ? err.message : String(err)}`);
+        log(`[notifier] send failed for chat ${sub.chatId}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // Persist regardless of a send failure so a permanently-blocked chat does not

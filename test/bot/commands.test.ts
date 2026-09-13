@@ -86,6 +86,33 @@ describe("command routing", () => {
     expect(store.getSubscription(103)!.enabled).toBe(true);
   });
 
+  it("/alerts with no argument lists current types", () => {
+    reply(200, "/start loc_arau_perlis");
+    expect(reply(200, "/alerts")).toContain("Alerts on:");
+  });
+
+  it("/alerts aqi flood switches to just those", () => {
+    reply(200, "/alerts aqi flood");
+    expect(store.getSubscription(200)!.alertTypes).toEqual(["aqi", "flood"]);
+  });
+
+  it("/alerts +quake / -warnings toggles individually", () => {
+    reply(200, "/alerts all"); // deterministic starting point
+    reply(200, "/alerts +quake -warnings");
+    expect(store.getSubscription(200)!.alertTypes).toEqual(["aqi", "quake", "flood"]);
+  });
+
+  it("/alerts all restores defaults, none clears", () => {
+    reply(200, "/alerts all");
+    expect(store.getSubscription(200)!.alertTypes).toEqual(DEFAULT_ALERT_TYPES);
+    reply(200, "/alerts none");
+    expect(store.getSubscription(200)!.alertTypes).toEqual([]);
+  });
+
+  it("/alerts prompts when not subscribed", () => {
+    expect(reply(777, "/alerts")).toContain("Where should I alert you?");
+  });
+
   it("/help lists the commands", () => {
     expect(reply(1, "/help")).toContain("/stop");
     expect(reply(1, "/help")).toContain("/location");
