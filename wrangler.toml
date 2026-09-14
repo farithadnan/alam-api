@@ -1,6 +1,6 @@
 # Alam — Cloudflare Pages + Functions + D1
-# Local dev: npx wrangler pages dev (uses a LOCAL D1 via migrations, no auth/cloud needed).
-# Prod: npx wrangler pages deploy + npx wrangler d1 migrations apply DB --remote
+# Local dev: npx wrangler pages dev (uses a LOCAL D1 via migrations, no cloud writes).
+# Prod: npx wrangler pages deploy + npx wrangler d1 migrations apply --remote
 name = "alam"
 compatibility_date = "2026-09-14"
 pages_build_output_dir = "../udara-dashboard/dist"
@@ -8,21 +8,19 @@ pages_build_output_dir = "../udara-dashboard/dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "alam"
-# Local dev uses an on-disk SQLite regardless of this id; replaced by the real prod id at
-# cutover (matching the app.oh-alam.my project). Never rely on this value being live.
-database_id = "local-dev-placeholder"
+database_id = "f23e188f-0e5d-44ac-a1d3-6a45aa5c747b"
 migrations_dir = "migrations"
 
 [env.development]
 [[env.development.d1_databases]]
 binding = "DB"
 database_name = "alam-dev"
-database_id = "local-dev-placeholder"
+database_id = "fc708fe2-be05-4cb7-9012-e3e9ff8ca929"
 migrations_dir = "migrations"
 
 [env.production]
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "alam"
-database_id = "local-dev-placeholder"
+database_id = "f23e188f-0e5d-44ac-a1d3-6a45aa5c747b"
 migrations_dir = "migrations"
