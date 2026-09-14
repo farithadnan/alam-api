@@ -116,4 +116,70 @@ export class D1Store {
       .first();
     return row?.district_name ?? null;
   }
+
+  /**
+   * Idempotent append-only insert (`UNIQUE(source, station, measured_at, kind)` + IGNORE).
+   * Batches rows into a few multi-row statements so a whole adapter cycle stays within a
+   * free-tier Worker's CPU budget. If a batch trips a storage bound-variable limit, it is
+   * recursively halved until it fits — robust to whatever the D1/SQLite limit is on a host
+   * (local miniflare had a tighter limit than the docs assume). Returns rows actually inserted.
+   */
+  async ingest(rows) {
+    if (!rows.length) return 0;
+    return this._ingestChunk(rows);
+  }
+
+  async _ingestChunk(chunk) {
+    const BASE = `INSERT OR IGNORE INTO observations (source, station, station_name, measured_at, kind, value, meta) VALUES `;
+    const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, ?, ?)`).join(", ");
+    const vals = chunk.flatMap((r) => [
+      r.source, r.station, r.stationName, r.measuredAt, r.kind, r.value,
+      r.meta ? JSON.stringify(r.meta) : null,
+    ]);
+    try {
+      const res = await this.db.prepare(BASE + placeholders).bind(...vals).run();
+      return Number(res.meta.changes ?? 0);
+    } catch (e) {
+      if (chunk.length <= 1 || !/too many SQL variables/i.test(String(e))) throw e;
+      const mid = Math.ceil(chunk.length / 2);
+      return (await this._ingestChunk(chunk.slice(0, mid))) + (await this._ingestChunk(chunk.slice(mid)));
+    }
+  }
+
+  async sourceState(adapterId) {
+    const row = await this.db
+      .prepare(`SELECT last_polled_at, last_ok_at FROM source_state WHERE adapter_id = ?`)
+      .bind(adapterId)
+      .first();
+    return { lastPollledAt: row?.last_polled_at ?? null, lastOkAt: row?.last_ok_at ?? null };
+  }
+
+  async isStale(adapterId, intervalMs, now = Date.now()) {
+    const { lastPollledAt } = await this.sourceState(adapterId);
+    if (!lastPollledAt) return true;
+    const at = Date.parse(lastPollledAt);
+    return !Number.isFinite(at) || now - at >= intervalMs;
+  }
+
+  async recordPoll(adapterId, rows, error) {
+    const at = new Date().toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO source_state (adapter_id, last_polled_at, last_ok_at, last_error, last_rows)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(adapter_id) DO UPDATE SET
+           last_polled_at = excluded.last_polled_at,
+           last_ok_at = CASE WHEN excluded.last_error IS NULL THEN excluded.last_ok_at ELSE source_state.last_ok_at END,
+           last_error = excluded.last_error,
+           last_rows = excluded.last_rows`,
+      )
+      .bind(adapterId, at, error ? null : at, error ?? null, rows)
+      .run();
+  }
+
+  async pruneOlderThan(days) {
+    const cutoff = new Date(Date.now() + 8 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 19);
+    const res = await this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).bind(cutoff).run();
+    return Number(res.meta.changes ?? 0);
+  }
 }

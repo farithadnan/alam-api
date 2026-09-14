@@ -51,6 +51,7 @@ async function route(method, path, params, env) {
   // Normalise /api/summary, /api, /api/, and the /v1 alias.
   let api = path.replace(/^\/v1/, "/api").replace(/^\/api\/?/, "");
   api = api.replace(/\/$/, "");
+  if (api === "health") return json({ ok: true, t: new Date().toISOString() });
 
   if (api === "") return json(apiIndex());
   if (api === "summary") {
@@ -100,6 +101,37 @@ async function route(method, path, params, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    return route(request.method, url.pathname, url.searchParams, env);
+    const path = url.pathname.replace(/\/+$/, "");
+
+    // Internal ingest/source-status endpoints, behind a shared secret. NOT exposed in the
+    // public /api surface. The GH/local runner hits these to feed D1.
+    if (path.startsWith("/_internal")) {
+      const given = request.headers.get("X-Ingest-Secret") ?? "";
+      if (!env.INGEST_SECRET || given !== env.INGEST_SECRET) {
+        return json({ error: "unauthorized" }, 401);
+      }
+      const store = new D1Store(env.DB);
+      if (path === "/_internal/source" && request.method === "GET") {
+        const id = url.searchParams.get("adapterId") || "";
+        const intervalMs = Number(url.searchParams.get("intervalMs") || 0);
+        const st = await store.sourceState(id);
+        return json({ adapterId: id, lastPolledAt: st.lastPollledAt, lastOkAt: st.lastOkAt, stale: await store.isStale(id, intervalMs) });
+      }
+      if (path === "/_internal/ingest" && request.method === "POST") {
+        const body = await request.json().catch(() => null);
+        if (!body || !Array.isArray(body.rows)) return json({ error: "bad_request" }, 400);
+        const inserted = await store.ingest(body.rows);
+        await store.recordPoll(String(body.adapterId ?? ""), inserted);
+        const pruned = await store.pruneOlderThan(90);
+        return json({ adapterId: body.adapterId ?? "", inserted, pruned });
+      }
+      if (path === "/_internal/prune" && request.method === "POST") {
+        const days = Number(url.searchParams.get("days") || 90);
+        return json({ pruned: await store.pruneOlderThan(days) });
+      }
+      return json({ error: "not_found", path }, 404);
+    }
+
+    return route(request.method, path, url.searchParams, env);
   },
 };
