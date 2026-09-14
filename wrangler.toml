@@ -1,9 +1,15 @@
-# Alam — Cloudflare Pages + Functions + D1
-# Local dev: npx wrangler pages dev (uses a LOCAL D1 via migrations, no cloud writes).
-# Prod: npx wrangler pages deploy + npx wrangler d1 migrations apply --remote
+# Alam — Cloudflare Worker + static assets + D1
+#
+# Two modes, one config:
+#   DEV  -> npx wrangler dev            (serves the SPA + Worker locally; D1 = a LOCAL
+#     sqlite under .wrangler/, fed by the migrations — zero cloud state)
+#   PROD -> npx wrangler deploy         (serves the SPA + Worker at the Worker's zone/
+#     custom domain (app.oh-alam.my at cutover); D1 = the remote `alam` DB bound below)
+#
+# Docs for the dev/prod workflow live in README.md ("Local development" / "Deploy").
 name = "alam"
+main = "src/worker.js"
 compatibility_date = "2026-09-14"
-pages_build_output_dir = "../udara-dashboard/dist"
 
 [[d1_databases]]
 binding = "DB"
@@ -11,16 +17,9 @@ database_name = "alam"
 database_id = "f23e188f-0e5d-44ac-a1d3-6a45aa5c747b"
 migrations_dir = "migrations"
 
-[env.development]
-[[env.development.d1_databases]]
-binding = "DB"
-database_name = "alam-dev"
-database_id = "fc708fe2-be05-4cb7-9012-e3e9ff8ca929"
-migrations_dir = "migrations"
-
-[env.production]
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "alam"
-database_id = "f23e188f-0e5d-44ac-a1d3-6a45aa5c747b"
-migrations_dir = "migrations"
+[assets]
+directory = "../udara-dashboard/dist"
+# SPA routing: paths that match no asset file fall back to index.html (the app uses
+# hash routing, so deep links live under `#/`). /api/* and /health never match a file
+# and therefore always reach the Worker's fetch handler.
+not_found_handling = "single-page-application"
