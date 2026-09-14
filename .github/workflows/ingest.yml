@@ -23,5 +23,9 @@ jobs:
           INGEST_BASE: ${{ vars.INGEST_BASE }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+          # Cadence overrides keep steady-state D1 writes well under the free-tier 100k/day
+          # cap (fresh seed + full-speed ingest blew day 1). 900s=15min AQI/flood, 3600s=hourly weather.
+          POLL_SECONDS: ${{ vars.POLL_SECONDS || '900' }}
+          POLL_OPENMETEO_SECONDS: ${{ vars.POLL_OPENMETEO_SECONDS || '3600' }}
           PUSH_CHUNK: "100"
         run: npx tsx workflows/ingest.mjs

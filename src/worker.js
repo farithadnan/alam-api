@@ -240,7 +240,7 @@ export default {
         if (!body || !Array.isArray(body.rows)) return json({ error: "bad_request" }, 400);
         const inserted = await store.ingest(body.rows);
         await store.recordPoll(String(body.adapterId ?? ""), inserted);
-        return json({ adapterId: body.adapterId ?? "", inserted, pruned: await store.pruneOlderThan(90) });
+        return json({ adapterId: body.adapterId ?? "", inserted });
       }
       if (path === "/_internal/prune" && request.method === "POST") {
         return json({ pruned: await store.pruneOlderThan(Number(url.searchParams.get("days") || 90)) });

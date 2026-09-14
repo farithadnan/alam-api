@@ -69,6 +69,8 @@ async function main() {
   if (!SECRET) { console.error("INGEST_SECRET not set"); process.exit(2); }
   const t0 = Date.now();
   await mapLimit(adapters, CONCURRENCY, (a) => runOne(a).catch((e) => console.error(`[${a.id}] ${e.message}`)));
+  // Prune ONCE per cycle (not per chunk — the Worker must not bill a delete per batch).
+  await fetch(`${BASE}/_internal/prune?days=90`, { method: "POST", headers: H() }).catch(() => {});
   console.log(`[runner] cycle done in ${Date.now() - t0}ms`);
 }
 
