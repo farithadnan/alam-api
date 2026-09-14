@@ -5,3 +5,5 @@ data/
 *.jsonl
 .hermes/
 .env
+.dev.vars
+.wrangler/
