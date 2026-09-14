@@ -1,0 +1,27 @@
+name: ingest
+# Always-on data feed for the serverless stack. Free Workers cannot hold a timer and are
+# CPU-capped (10ms), so ingestion runs on the GH runner (real CPU) and POSTs small,
+# CPU-safe chunks to the Worker's /_internal/ingest -> D1. The runner honours each source's
+# own interval via D1 source_state, so every 5-min tick only polls what is actually stale.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install deps
+        run: npm ci
+      - name: Poll upstreams and push to Worker D1
+        env:
+          INGEST_BASE: ${{ vars.INGEST_BASE }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+          PUSH_CHUNK: "100"
+        run: npx tsx workflows/ingest.mjs

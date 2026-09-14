@@ -29,10 +29,18 @@ async function sourceStatus(id, intervalMs) {
 }
 
 async function push(id, rows) {
-  const r = await fetch(`${BASE}/_internal/ingest`, { method: "POST", headers: H(), body: JSON.stringify({ adapterId: id, rows }) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`ingest ${r.status} ${JSON.stringify(j)}`);
-  return j;
+  // Keep each POST to a single small D1 statement: free Workers cap CPU at 10ms/invocation,
+  // so a whole-adapter batch in one request gets killed with 503. Chunk here.
+  const N = Number(process.env.PUSH_CHUNK || 100);
+  let total = 0;
+  for (let i = 0; i < rows.length; i += N) {
+    const chunk = rows.slice(i, i + N);
+    const r = await fetch(`${BASE}/_internal/ingest`, { method: "POST", headers: H(), body: JSON.stringify({ adapterId: id, rows: chunk }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`ingest ${r.status} ${JSON.stringify(j)}`);
+    total += j.inserted ?? 0;
+  }
+  return { inserted: total };
 }
 
 async function runOne(adapter) {

@@ -32,7 +32,7 @@ const rows = stmt.all().map((r) => ({
 }));
 console.log(`read ${rows.length} rows from ${DB_PATH}`);
 
-const CHUNK = 250;
+const CHUNK = Number(process.env.SEED_CHUNK || 100);
 const H = { "content-type": "application/json", "x-ingest-secret": secret };
 let insertedTotal = 0, failed = 0;
 async function push(chunk) {
