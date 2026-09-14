@@ -9,7 +9,7 @@
  */
 
 /** Where alerts link back to. Overridden by SITE_URL. */
-const DEFAULT_URL = "https://ohmyalam.com";
+const DEFAULT_URL = "https://app.oh-alam.my";
 
 const BAND_ICON: Record<string, string> = {
   Good: "🟢",
@@ -157,28 +157,29 @@ export function parsePayload(payload?: string | null): { town: string; state: st
 export const commands = {
   welcome: (place?: string | null) =>
     [
-      b("👋 Alam alerts"),
+      b("👋 Hi, I'm Alam"),
       "",
       place
-        ? `Watching ${esc(place)}. I'll message you when the air turns unhealthy or a warning is issued.`
-        : "I'll message you when the air turns unhealthy or a warning is issued for your place.",
+        ? `I'll keep an eye on ${esc(place)} and send you a heads-up when the air turns unhealthy, a warning is issued, there's a notable quake, or a river near you reaches alert level.`
+        : "Tell me where you are and I'll keep an eye on the weather, air quality and hazards there, nudging you only when something is worth knowing.",
       "",
       commandsBlock([
-        ["/location", "set your place"],
-        ["/stop", "pause alerts"],
+        [place ? "/status" : "/location", "your place"],
+        ["/alerts", "choose alert types"],
         ["/help", "more"],
+        ["/stop", "pause alerts"],
       ]),
     ].join("\n"),
 
-  locationPrompt: () => `${b("📍 Where should I alert you?")}\n\nSend /location followed by your town and state, e.g. /location arau perlis`,
+  locationPrompt: () => `${b("📍 Where should I keep watch?")}\n\nSend /location followed by your town and state, e.g. /location arau perlis`,
 
-  locationUnknown: (input: string) => `I don't know "${esc(input)}".\n\nTry a town and state, e.g. /location arau perlis`,
+  locationUnknown: (input: string) => `I don't recognise "${esc(input)}".\n\nTry a town and state, e.g. /location arau perlis`,
 
   locationSet: (place: string) =>
     [
-      b(`✅ Location set to ${esc(place)}`),
+      b(`✅ Watching ${esc(place)}`),
       "",
-      "I'll keep an eye on it and message you when something changes.",
+      "I'll keep an eye on it and only message you when there's something worth knowing.",
       "",
       commandsBlock([
         ["/status", "review your alerts"],
@@ -190,7 +191,7 @@ export const commands = {
     [
       b(`📍 ${esc(place)}`),
       condition ? esc(condition) : null,
-      alerts.length ? `Alerts on: ${alerts.map(esc).join(", ")}` : "No alerts on.",
+      alerts.length ? `I'm watching: ${alerts.map(esc).join(", ")}.` : "No alerts switched on yet.",
       "",
       commandsBlock([
         ["/alerts", "choose alert types"],
@@ -203,12 +204,12 @@ export const commands = {
 
   alertsShow: (alerts: string[]) =>
     [
-      alerts.length ? b(`Alerts on: ${alerts.map(esc).join(", ")}`) : b("All alerts off"),
+      alerts.length ? b(`I'm watching: ${alerts.map(esc).join(", ")}.`) : b("All alerts paused"),
       "",
-      "Choose what I message you. Types: air quality, warnings, earthquakes, river and rain.",
+      "Choose what I keep an eye on for you: air quality, weather warnings, earthquakes, or rivers and heavy rain.",
       "",
       commandsBlock([
-        ["/alerts aqi flood", "only air + river & rain"],
+        ["/alerts aqi flood", "just air + river/rain"],
         ["/alerts +quake -warnings", "toggle one"],
         ["/alerts all", "everything"],
       ]),
@@ -216,22 +217,24 @@ export const commands = {
 
   help: () =>
     [
-      b("Alam alerts"),
+      b("Alam · Malaysia weather & safety alerts"),
       "",
-      "One message when something changes: air quality crossing into an unhealthy band, a warning issued, a significant quake, or a river near you reaching alert level.",
+      "I watch your place and message you only when something changes worth knowing: air quality dropping into the unhealthy range, a warning issued, a significant quake, or a river near you at alert level.",
       "",
       commandsBlock([
         ["/location", "set your place"],
         ["/alerts", "choose alert types"],
-        ["/status", "your place and your alerts"],
+        ["/status", "your place + alerts"],
         ["/stop", "pause alerts"],
-        ["/help", "more"],
+        ["/help", "this again"],
       ]),
+      "",
+      `Live dashboard: ${link()}`,
     ].join("\n"),
 
-  stopped: () => `${b("🔕 Alerts off")}\n\nSend /start any time to turn them back on.`,
+  stopped: () => `${b("🔕 Paused")}\n\nI'll stay quiet. Send /start any time to turn things back on.`,
 
-  unknown: () => "I did not catch that.\n\nTry /location, /status, /stop or /help.",
+  unknown: () => "I didn't catch that.\n\nTry /location, /status, /alerts, /stop or /help.",
 
   /** Dev-only: prove the pipe end to end with a sample alert for the chat's place. */
   debug: (place: string) => `🧪 test alert: this is what an AQI alert looks like for ${esc(place)}. No action needed.`,

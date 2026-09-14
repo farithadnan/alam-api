@@ -29,14 +29,14 @@ describe("place resolution", () => {
 describe("command routing", () => {
   it("/start without a payload welcomes a new chat", () => {
     const text = reply(101, "/start");
-    expect(text).toContain("Alam alerts");
+    expect(text).toContain("Hi, I'm Alam");
     expect(text).toContain("/location");
     expect(store.getSubscription(101)).toBeNull(); // no place yet, no row
   });
 
   it("/start with a deep-link subscribes and acknowledges the place", () => {
     const text = reply(101, "/start loc_arau_perlis");
-    expect(text).toContain("Watching Arau, Perlis");
+    expect(text).toContain("keep an eye on Arau, Perlis");
     const sub = store.getSubscription(101)!;
     expect(sub.townSlug).toBe("arau");
     expect(sub.state).toBe("Perlis");
@@ -46,22 +46,22 @@ describe("command routing", () => {
 
   it("/location sets the place and keeps it in status", () => {
     const set = reply(102, "/location johor bahru");
-    expect(set).toContain("Location set to Johor Bahru, Johor");
+    expect(set).toContain("Watching Johor Bahru, Johor");
     const st = reply(102, "/status");
     expect(st).toContain("Johor Bahru, Johor");
-    expect(st).toContain("Alerts on: air quality, warnings, earthquakes");
+    expect(st).toContain("I'm watching: air quality, warnings, earthquakes");
   });
 
   it("/location with no argument prompts", () => {
-    expect(reply(200, "/location")).toContain("Where should I alert you?");
+    expect(reply(200, "/location")).toContain("Where should I keep watch?");
   });
 
   it("/location for an unknown place says so", () => {
-    expect(reply(200, "/location atlantis")).toContain('I don\'t know "atlantis"');
+    expect(reply(200, "/location atlantis")).toContain('I don\'t recognise "atlantis"');
   });
 
   it("/status prompts when not subscribed", () => {
-    expect(reply(999, "/status")).toContain("Where should I alert you?");
+    expect(reply(999, "/status")).toContain("Where should I keep watch?");
   });
 
   it("/status shows the live air quality for the place when a reading exists", () => {
@@ -72,23 +72,23 @@ describe("command routing", () => {
     const st = reply(300, "/status");
     expect(st).toContain("Pasir Gudang, Johor");
     expect(st).toContain("Air now: Moderate · AQI 82");
-    expect(st).toContain("Alerts on: air quality, warnings, earthquakes");
+    expect(st).toContain("I'm watching: air quality, warnings, earthquakes");
   });
 
   it("/stop disables an existing chat, /start re-enables", () => {
     reply(103, "/start loc_arau_perlis");
     expect(store.getSubscription(103)!.enabled).toBe(true);
     const stopped = reply(103, "/stop");
-    expect(stopped).toContain("Alerts off");
+    expect(stopped).toContain("Paused");
     expect(store.getSubscription(103)!.enabled).toBe(false);
-    expect(reply(103, "/status")).toContain("Alerts off");
+    expect(reply(103, "/status")).toContain("Paused");
     reply(103, "/start loc_arau_perlis");
     expect(store.getSubscription(103)!.enabled).toBe(true);
   });
 
   it("/alerts with no argument lists current types", () => {
     reply(200, "/start loc_arau_perlis");
-    expect(reply(200, "/alerts")).toContain("Alerts on:");
+    expect(reply(200, "/alerts")).toContain("I'm watching:");
   });
 
   it("/alerts aqi flood switches to just those", () => {
@@ -110,7 +110,7 @@ describe("command routing", () => {
   });
 
   it("/alerts prompts when not subscribed", () => {
-    expect(reply(777, "/alerts")).toContain("Where should I alert you?");
+    expect(reply(777, "/alerts")).toContain("Where should I keep watch?");
   });
 
   it("/help lists the commands", () => {
@@ -130,6 +130,6 @@ describe("command routing", () => {
   });
 
   it("answers an unknown command", () => {
-    expect(reply(1, "/flibble")).toContain("did not catch that");
+    expect(reply(1, "/flibble")).toContain("catch that");
   });
 });

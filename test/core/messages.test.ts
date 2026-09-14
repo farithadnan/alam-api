@@ -7,7 +7,7 @@ describe("alert messages — one fact first, place, short, link", () => {
     expect(t.split("\n")[0]).toBe("<b>⚠️ Thunderstorm Warning — Perlis</b>");
     expect(t).toContain("Issued 12 min ago");
     expect(t).toContain("Valid until");
-    expect(t).toContain("ohmyalam.com");
+    expect(t).toContain("app.oh-alam.my");
   });
 
   it("omits the valid-until line rather than printing a hole", () => {
@@ -21,7 +21,7 @@ describe("alert messages — one fact first, place, short, link", () => {
     expect(t.split("\n")[0]).toBe("<b>🔴 AQI 162 · Unhealthy</b>");
     expect(t).toContain("Pasir Gudang");
     expect(t).toContain("Avoid prolonged outdoor activity.");
-    expect(t).toContain("ohmyalam.com");
+    expect(t).toContain("app.oh-alam.my");
   });
 
   it("uses the recovery tone when air improves", () => {
@@ -78,14 +78,14 @@ describe("deep links and commands", () => {
   });
   it("acknowledges a location change and lists what is on", () => {
     expect(commands.locationSet("Arau, Perlis")).toContain("Arau, Perlis");
-    expect(commands.status("Arau, Perlis", ["AQI", "warnings"])).toContain("Alerts on: AQI, warnings");
-    expect(commands.status("Arau, Perlis", [])).toContain("No alerts on.");
+    expect(commands.status("Arau, Perlis", ["AQI", "warnings"])).toContain("I'm watching: AQI, warnings.");
+    expect(commands.status("Arau, Perlis", [])).toContain("No alerts switched on yet.");
   });
   it("explains itself and how to stop", () => {
     expect(commands.help()).toContain("/stop");
-    expect(commands.stopped()).toContain("Alerts off");
+    expect(commands.stopped()).toContain("Paused");
     expect(commands.welcome()).toContain("/location");
-    expect(commands.welcome("Arau, Perlis")).toContain("Watching Arau, Perlis");
+    expect(commands.welcome("Arau, Perlis")).toContain("keep an eye on Arau, Perlis");
   });
   it("keeps a blank line before the command footer and uses bullets", () => {
     const s = commands.status("Arau, Perlis", ["air quality"]);
