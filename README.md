@@ -85,10 +85,20 @@ local origin once it exists (Phase 2), or seed rows by hand:
 npx wrangler d1 execute DB --local --command "INSERT INTO observations (...) VALUES (...)"
 ```
 
-Telegram webhook (Phase 3, optional in dev): Telegram only reaches a public HTTPS URL, so
-to test the bot locally point the bot's webhook at a quick-tunnel to `localhost:8788`. Your
-code still runs locally; the tunnel is just the doorway.
-Caveat: a quick-tunnel URL changes each run, so you must re-`setWebhook` per session.
+Telegram webhook (Phase 3, optional in dev): Telegram only reaches a public HTTPS URL, so to
+test the bot locally (or reach your local dev server from your phone) put a Cloudflare quick
+tunnel in front of `wrangler dev`:
+
+```bash
+cloudflared tunnel --config /dev/null --url http://localhost:8788
+```
+
+> **Pitfall you WILL hit:** if `~/.cloudflared/config.yml` exists (this host's prod named
+> tunnel does, with a catch-all `http_status:404`), plain `cloudflared tunnel --url …`
+> silently loads that config, routes the quick-tunnel hostname through the PROD ingress, and
+> the catch-all 404 swallows every request — the tunnel "works" but returns 404 with an
+> empty body. The `--config /dev/null` forces a clean quick tunnel. A new random URL is
+> minted each run: open it on your phone and, if testing the bot, re-`setWebhook` per session.
 
 ### Production (deploy)
 
