@@ -182,4 +182,63 @@ export class D1Store {
     const res = await this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).bind(cutoff).run();
     return Number(res.meta.changes ?? 0);
   }
+
+  // ---- Telegram subscriptions + alert state (D1 mirror of the SQLite Store) ----
+
+  async getSubscriptions(enabledOnly = true) {
+    const sql = `SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions${enabledOnly ? " WHERE enabled = 1" : ""} ORDER BY chat_id`;
+    const res = await this.db.prepare(sql).all();
+    return res.results.map((r) => ({
+      chatId: Number(r.chat_id), townSlug: String(r.town_slug), state: String(r.state),
+      place: String(r.place), alertTypes: String(r.alert_types).split(",").filter(Boolean), enabled: Number(r.enabled) === 1,
+    }));
+  }
+
+  async getSubscription(chatId) {
+    const r = await this.db.prepare(`SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions WHERE chat_id = ?`).bind(chatId).first();
+    return r ? { chatId: Number(r.chat_id), townSlug: String(r.town_slug), state: String(r.state), place: String(r.place), alertTypes: String(r.alert_types).split(",").filter(Boolean), enabled: Number(r.enabled) === 1 } : null;
+  }
+
+  async upsertSubscription(s) {
+    await this.db.prepare(
+      `INSERT INTO chat_subscriptions (chat_id, town_slug, state, place, alert_types, enabled)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(chat_id) DO UPDATE SET
+         town_slug = excluded.town_slug, state = excluded.state, place = excluded.place,
+         alert_types = excluded.alert_types, enabled = excluded.enabled,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+    ).bind(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0).run();
+  }
+
+  async setChatEnabled(chatId, enabled) {
+    await this.db.prepare(`UPDATE chat_subscriptions SET enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`).bind(enabled ? 1 : 0, chatId).run();
+  }
+
+  async setChatAlertTypes(chatId, alertTypes, enabled = true) {
+    await this.db.prepare(`UPDATE chat_subscriptions SET alert_types = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`).bind(alertTypes.join(","), enabled ? 1 : 0, chatId).run();
+  }
+
+  async alertStateForChat(chatId) {
+    const res = await this.db.prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? ORDER BY kind, key`).bind(chatId).all();
+    return res.results.map((r) => ({
+      chatId: Number(r.chat_id), kind: String(r.kind), key: String(r.key),
+      lastBand: r.last_band == null ? null : String(r.last_band), lastValue: r.last_value == null ? null : Number(r.last_value),
+      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at), lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
+    }));
+  }
+
+  async getAlertState(chatId, kind, key) {
+    const r = await this.db.prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? AND kind = ? AND key = ?`).bind(chatId, kind, key).first();
+    return r ? { chatId: Number(r.chat_id), kind: String(r.kind), key: String(r.key), lastBand: r.last_band == null ? null : String(r.last_band), lastValue: r.last_value == null ? null : Number(r.last_value), lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at), lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at) } : null;
+  }
+
+  async setAlertState(row) {
+    await this.db.prepare(
+      `INSERT INTO alert_state (chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(chat_id, kind, key) DO UPDATE SET
+         last_band = excluded.last_band, last_value = excluded.last_value,
+         last_alert_at = excluded.last_alert_at, last_recovery_at = excluded.last_recovery_at`,
+    ).bind(row.chatId, row.kind, row.key, row.lastBand, row.lastValue, row.lastAlertAt, row.lastRecoveryAt).run();
+  }
 }

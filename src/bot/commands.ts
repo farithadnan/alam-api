@@ -10,7 +10,8 @@
 import { commands } from "../core/messages.js";
 import { MALAYSIA_LOCALITIES } from "../core/localities.js";
 import { aqiBand } from "../core/bands.js";
-import { DEFAULT_ALERT_TYPES, type Store } from "../store/db.js";
+import { DEFAULT_ALERT_TYPES } from "./defaults.js";
+import type { Store } from "../store/db.js";
 import { resolveLocality, resolvePayload } from "./resolve.js";
 import { pickAqiStation } from "./engine.js";
 

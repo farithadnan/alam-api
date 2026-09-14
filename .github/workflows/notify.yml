@@ -1,0 +1,22 @@
+name: notify
+# Alert evaluation cycle for the serverless stack. Every tick, hit the Worker's
+# /_internal/notify, which evaluates enabled subscriptions against latest D1 data
+# (edge-trigger) and sends via the Telegram Bot API. Quiet hours 23-07 MY are enforced
+# inside the Worker, so this may run but stay silent.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger alert cycle
+        env:
+          BASE: ${{ vars.INGEST_BASE }}
+          SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          curl -fsS -X POST \
+            -H "X-Ingest-Secret: $SECRET" \
+            "$BASE/_internal/notify"

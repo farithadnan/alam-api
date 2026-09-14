@@ -41,7 +41,7 @@ const stateEqual = (a: AlertStateRow, b: AlertStateRow): boolean =>
   a.lastRecoveryAt === b.lastRecoveryAt;
 
 /** One evaluation pass: fetch once, evaluate every enabled chat, send + persist. */
-async function runCycle(client: TelegramClient, store: Store, url: string, log: Log): Promise<void> {
+export async function runCycle(client: TelegramClient, store: Store, url: string, log: Log): Promise<void> {
   const subs = store.getSubscriptions(true);
   if (!subs.length) return;
   const aqi = store.latestBySource("doe-eqms").filter((r) => r.kind === "aqi");

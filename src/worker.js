@@ -13,6 +13,9 @@
  * 10ms.
  */
 import { D1Store } from "./store/d1-store.js";
+import { TelegramClient } from "./bot/telegram.js";
+import { handleMessage } from "./bot/commands.js";
+import { runCycle, quietActive } from "./bot/notifier.js";
 import { aqiBand } from "./core/bands.js";
 import { groupWarnings } from "./core/warnings.js";
 import { MALAYSIA_LOCALITIES } from "./core/localities.js";
@@ -73,6 +76,8 @@ const json = (body, status = 200, cache = "") =>
       ...(cache ? { "cache-control": cache } : {}),
     },
   });
+
+const log = (msg) => console.log("[bot] " + msg);
 
 async function route(method, path, params, env) {
   const store = new D1Store(env.DB);
@@ -240,7 +245,31 @@ export default {
       if (path === "/_internal/prune" && request.method === "POST") {
         return json({ pruned: await store.pruneOlderThan(Number(url.searchParams.get("days") || 90)) });
       }
+      if (path === "/_internal/notify" && (request.method === "GET" || request.method === "POST")) {
+        if (!env.TELEGRAM_BOT_TOKEN) return json({ ok: true, note: "no TELEGRAM_BOT_TOKEN" });
+        if (quietActive(Date.now(), Number(env.QUIET_START ?? 23), Number(env.QUIET_END ?? 7))) return json({ ok: true, skipped: "quiet" });
+        const client = new TelegramClient(env.TELEGRAM_BOT_TOKEN, log);
+        const url = env.SITE_URL || "https://app.oh-alam.my";
+        const result = await runCycle(client, store, url, log).catch((e) => ({ error: e.message }));
+        return json({ ok: true, result });
+      }
       return json({ error: "not_found", path }, 404);
+    }
+
+    // ---- Telegram webhook (inbound commands) ----
+    if (path === "/telegram/webhook" && request.method === "POST") {
+      const expected = request.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "";
+      if (!env.TELEGRAM_WEBHOOK_SECRET || expected !== env.TELEGRAM_WEBHOOK_SECRET) return json({ error: "unauthorized" }, 401);
+      const update = await request.json().catch(() => null);
+      const chatId = update?.message?.chat?.id;
+      const text = update?.message?.text;
+      if (typeof chatId === "number" && typeof text === "string" && env.TELEGRAM_BOT_TOKEN) {
+        const store = new D1Store(env.DB);
+        const client = new TelegramClient(env.TELEGRAM_BOT_TOKEN, log);
+        const reply = handleMessage({ store }, chatId, text);
+        if (reply) await client.sendMessage(chatId, reply).catch(() => {});
+      }
+      return json({ ok: true });
     }
 
     return route(request.method, path, url.searchParams, env);
