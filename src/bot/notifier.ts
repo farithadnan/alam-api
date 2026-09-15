@@ -12,6 +12,7 @@ import type { Store, AlertStateRow } from "../store/db.js";
 import { TelegramClient, runPump } from "./telegram.js";
 import { handleMessage } from "./commands.js";
 import { evaluateChat } from "./engine.js";
+import { siteLink } from "../core/messages.js";
 
 type Log = (msg: string) => void;
 
@@ -40,6 +41,16 @@ const stateEqual = (a: AlertStateRow, b: AlertStateRow): boolean =>
   a.lastAlertAt === b.lastAlertAt &&
   a.lastRecoveryAt === b.lastRecoveryAt;
 
+/**
+ * One notification = the alert topics joined, then the app link ONCE at the end. So a
+ * multi-alert cycle reads as a single summary with one place to go, never a URL under
+ * every topic.
+ */
+export function composeBody(texts: string[], url: string): string {
+  const head = texts.length === 1 ? "" : `🔔 ${texts.length} new alerts for you\n\n`;
+  return `${head}${texts.join("\n\n")}\n\n${siteLink(url)}`;
+}
+
 /** One evaluation pass: fetch once, evaluate every enabled chat, send + persist. */
 export async function runCycle(client: TelegramClient, store: Store, url: string, log: Log): Promise<void> {
   const subs = store.getSubscriptions(true);
@@ -58,12 +69,8 @@ export async function runCycle(client: TelegramClient, store: Store, url: string
     // so a multiple-alert cycle reads as a summary instead of a burst of DMs.
     const texts = res.send.map((m) => m.text);
     if (texts.length) {
-      const body: string =
-        texts.length === 1
-          ? (texts[0] as string)
-          : `🔔 ${texts.length} new alert${texts.length > 1 ? "s" : ""} for you\n\n${texts.join("\n\n")}`;
       try {
-        await client.sendMessage(sub.chatId, body);
+        await client.sendMessage(sub.chatId, composeBody(texts, url));
         sent++;
       } catch (err) {
         log(`[notifier] send failed for chat ${sub.chatId}: ${err instanceof Error ? err.message : String(err)}`);

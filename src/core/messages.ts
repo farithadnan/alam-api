@@ -55,6 +55,9 @@ const link = (url?: string): string => {
   return `<a href="${esc(u)}">${esc(displayUrl(u))}</a>`;
 };
 
+/** The single site link shown once at the end of an alert notification. */
+export const siteLink = (url?: string): string => link(url);
+
 /** One bullet-point command row: a bold command followed by a plain description. */
 const bullet = (name: string, desc: string) => `• ${b(name)}  ${desc}`;
 
@@ -72,7 +75,7 @@ export interface WarningInput {
 export function warningMsg({ title, place, issuedAt, validUntil, url }: WarningInput): string {
   const lines = [b(`⚠️ ${esc(title)} — ${esc(place)}`), `Issued ${ago(issuedAt)}`];
   if (validUntil) lines.push(`Valid until ${esc(clock(validUntil))}`);
-  return `${lines.join("\n")}\n\nView details → ${link(url)}`;
+  return lines.join("\n");
 }
 
 export interface AqiInput {
@@ -88,13 +91,13 @@ export function aqiMsg({ value, band, place, advice, url }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🔴";
   const body = [b(`${icon} AQI ${Math.round(value)} · ${esc(band)}`), esc(place)];
   if (advice) body.push(esc(advice));
-  return `${body.join("\n")}\n\n${link(url)}`;
+  return body.join("\n");
 }
 
 /** Air quality coming back down: cheap, and it stops people checking. */
 export function aqiRecoveredMsg({ value, band, url }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🟢";
-  return `${b(`${icon} AQI improved to ${Math.round(value)} · ${esc(band)}`)}\nYour area is clear again.\n\n${link(url)}`;
+  return `${b(`${icon} AQI improved to ${Math.round(value)} · ${esc(band)}`)}\nYour area is clear again.`;
 }
 
 export interface QuakeInput {
@@ -110,7 +113,7 @@ export interface QuakeInput {
 export function quakeMsg({ magnitude, place, depthKm, at, word, url }: QuakeInput): string {
   const head = `🌐 M ${magnitude.toFixed(1)}${word ? ` · ${esc(word)}` : ""} — ${esc(place)}`;
   const detail = [depthKm != null ? `Depth ${Math.round(depthKm)} km` : "", ago(at)].filter(Boolean).join(" · ");
-  return `${b(head)}\n${detail}\n\n${link(url)}`;
+  return `${b(head)}\n${detail}`;
 }
 
 export interface FloodInput {
@@ -127,7 +130,7 @@ export interface FloodInput {
 export function floodMsg({ place, station, district, level, severity, trend, url }: FloodInput): string {
   const lines = [b("🚨 River flood alert"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`Level ${esc(String(level))} m · ${esc(severity)}${trend ? ` · ${esc(trend)}` : ""}`);
-  return `${lines.join("\n")}\n\n${link(url)}`;
+  return lines.join("\n");
 }
 
 export interface RainInput {
@@ -143,7 +146,7 @@ export interface RainInput {
 export function rainMsg({ place, station, district, mmHour, severity, url }: RainInput): string {
   const lines = [b("🌧 Heavy rain"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`${esc(String(mmHour))} mm/hr · ${esc(severity)}`);
-  return `${lines.join("\n")}\n\n${link(url)}`;
+  return lines.join("\n");
 }
 
 /** Deep-link payload from /start, e.g. "loc_arau_perlis" -> Arau, Perlis. */

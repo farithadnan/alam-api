@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { warningMsg, aqiMsg, aqiRecoveredMsg, quakeMsg, parsePayload, commands, ago, clock, floodMsg, rainMsg } from "../../src/core/messages.js";
+import { composeBody } from "../../src/bot/notifier.js";
 
 describe("alert messages — one fact first, place, short, link", () => {
   it("leads a warning with the fact and the place", () => {
@@ -7,7 +8,6 @@ describe("alert messages — one fact first, place, short, link", () => {
     expect(t.split("\n")[0]).toBe("<b>⚠️ Thunderstorm Warning — Perlis</b>");
     expect(t).toContain("Issued 12 min ago");
     expect(t).toContain("Valid until");
-    expect(t).toContain("app.oh-alam.my");
   });
 
   it("omits the valid-until line rather than printing a hole", () => {
@@ -21,7 +21,6 @@ describe("alert messages — one fact first, place, short, link", () => {
     expect(t.split("\n")[0]).toBe("<b>🔴 AQI 162 · Unhealthy</b>");
     expect(t).toContain("Pasir Gudang");
     expect(t).toContain("Avoid prolonged outdoor activity.");
-    expect(t).toContain("app.oh-alam.my");
   });
 
   it("uses the recovery tone when air improves", () => {
@@ -37,16 +36,36 @@ describe("alert messages — one fact first, place, short, link", () => {
     expect(t).toContain("3h ago");
   });
 
-  it("keeps every alert short enough to read on a lock screen", () => {
+  it("keeps every alert topic URL-free — the link is appended once, by the notifier", () => {
     for (const t of [
-      warningMsg({ title: "Thunderstorm Warning", place: "Perlis", issuedAt: new Date().toISOString(), validUntil: "2026-09-11T18:00:00+08:00" }),
+      warningMsg({ title: "Thunderstorm Warning", place: "Perlis", issuedAt: new Date().toISOString() }),
       aqiMsg({ value: 162, band: "Unhealthy", place: "Pasir Gudang", advice: "Avoid prolonged outdoor activity." }),
       quakeMsg({ magnitude: 5.3, place: "83 km E of Lospalos", depthKm: 10, at: new Date().toISOString() }),
-    ]) expect(t.split("\n").length).toBeLessThanOrEqual(6);
+      floodMsg({ place: "Muar, Johor", station: "Sg. Test", level: 2.4, severity: "Danger" }),
+      rainMsg({ place: "Muar, Johor", station: "Gauge 1", mmHour: 45, severity: "Heavy" }),
+    ]) expect(t).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe("notification composition — one app link per notification", () => {
+  it("a single alert ends with the app link once, and only once", () => {
+    const s = composeBody(["<b>⚠️ Thunderstorm Warning — Perlis</b>"], "https://app.oh-alam.my");
+    expect(s.match(/app\.oh-alam\.my/g)!.length).toBe(1);
+    expect(s).toContain("App: <a href=\"https://app.oh-alam.my\">");
+    expect(s.indexOf('<b>⚠️')).toBeLessThan(s.indexOf("App:"));
   });
 
-  it("honours a SITE_URL override", () => {
-    expect(aqiMsg({ value: 10, band: "Good", place: "X", url: "https://staging.example.com" })).toContain("staging.example.com");
+  it("a multi-alert batch leads with the count and still has exactly one link", () => {
+    const m = composeBody(["<b>A</b>", "<b>B</b>"], "https://app.oh-alam.my");
+    expect(m).toContain("2 new alerts for you");
+    expect(m.match(/app\.oh-alam\.my/g)!.length).toBe(1);
+    expect(m).toContain("<b>A</b>");
+    expect(m).toContain("<b>B</b>");
+  });
+
+  it("honours the SITE_URL override for the single link", () => {
+    const s = composeBody(["<b>A</b>"], "https://staging.example.com");
+    expect(s.match(/staging\.example\.com/g)!.length).toBe(1);
   });
 });
 
@@ -56,7 +75,6 @@ describe("flood and heavy rain alerts", () => {
     expect(t).toContain("River flood alert");
     expect(t).toContain("Sg. Test");
     expect(t).toContain("Level 2.4 m · Danger · Rising");
-    expect(t).toContain("ohmyalam.com");
     expect(t.split("\n").length).toBeLessThanOrEqual(6);
   });
   it("states the heavy-rain value and severity", () => {
