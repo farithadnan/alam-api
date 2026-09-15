@@ -48,7 +48,7 @@ const stateEqual = (a: AlertStateRow, b: AlertStateRow): boolean =>
  */
 export function composeBody(texts: string[], url: string): string {
   const head = texts.length === 1 ? "" : `🔔 ${texts.length} new alerts for you\n\n`;
-  return `${head}${texts.join("\n\n")}\n\nApp: ${siteLink(url)}`;
+  return `${head}${texts.join("\n\n")}\n\nSee more in ${siteLink(url)}`;
 }
 
 /** One evaluation pass: fetch once, evaluate every enabled chat, send + persist. */

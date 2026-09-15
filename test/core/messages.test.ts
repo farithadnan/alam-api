@@ -51,8 +51,8 @@ describe("notification composition — one app link per notification", () => {
   it("a single alert ends with the app link once, and only once", () => {
     const s = composeBody(["<b>⚠️ Thunderstorm Warning — Perlis</b>"], "https://app.oh-alam.my");
     expect(s.match(/href="https:\/\/app\.oh-alam\.my"/g)!.length).toBe(1);
-    expect(s).toContain("App: <a href=\"https://app.oh-alam.my\">");
-    expect(s.indexOf('<b>⚠️')).toBeLessThan(s.indexOf("App:"));
+    expect(s).toContain("See more in <a href=\"https://app.oh-alam.my\">");
+    expect(s.indexOf('<b>⚠️')).toBeLessThan(s.indexOf("See more in"));
   });
 
   it("a multi-alert batch leads with the count and still has exactly one link", () => {
