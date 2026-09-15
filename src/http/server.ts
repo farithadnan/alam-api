@@ -264,7 +264,19 @@ export function buildServer(store: Store, dashboardDist = "") {
   // origin (and a single tunnel URL) is both the site and the API. API routes are
   // registered above, so /api/* always wins; static serves the rest.
   if (dashboardDist) {
-    app.register(fastifyStatic, { root: dashboardDist });
+    // Hash-based cache-busting: the hashed /assets/* bundles are immutable (never
+    // re-fetched once cached), but index.html must ALWAYS revalidate so the browser
+    // never holds an HTML that references a pruned/superseded bundle (→ 404 until
+    // hard refresh). Set per-file headers rather than relying on platform defaults.
+    app.register(fastifyStatic, {
+      root: dashboardDist,
+      cacheControl: false,
+      setHeaders(res: import("fastify").FastifyReply, path) {
+        const raw = res.raw as import("http").ServerResponse;
+        if (/index\.html$/.test(path)) raw.setHeader("Cache-Control", "no-cache");
+        else raw.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    });
     // In-app routes that don't match a real file resolve to index.html, so deep
     // navigation through the tunnel never 404s.
     app.setNotFoundHandler((req, reply) => {

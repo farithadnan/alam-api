@@ -19,7 +19,10 @@ migrations_dir = "migrations"
 
 [assets]
 directory = "../udara-dashboard/dist"
-# SPA routing: paths that match no asset file fall back to index.html (the app uses
-# hash routing, so deep links live under `#/`). /api/* and /health never match a file
-# and therefore always reach the Worker's fetch handler.
-not_found_handling = "single-page-application"
+# Serve assets THROUGH the Worker so we can set cache headers per file: index.html is
+# always revalidated (no-cache) so the browser never holds an HTML that references a
+# pruned bundle (→ 404 until hard refresh), while hashed /assets/* bundles are immutable.
+# run_worker_first routes every request to the Worker; serveAssets() falls back to the
+# SPA (index.html) for paths with no matching file. /api/* and /health never touch assets.
+binding = "ASSETS"
+run_worker_first = true

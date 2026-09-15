@@ -79,6 +79,31 @@ const json = (body, status = 200, cache = "") =>
 
 const log = (msg) => console.log("[bot] " + msg);
 
+/**
+ * Serve a static asset through the Worker so we can set per-file cache control.
+ * index.html (and the SPA fallback for deep-link paths) is sent no-cache — it must
+ * always revalidate, otherwise the browser can hold old HTML that points at pruned
+ * hashed bundles (404 until a hard refresh). Everything else (hashed /assets/*,
+ * manifest, icons, sw) is immutable: its filename changes per build.
+ */
+function withCache(resp, cc) {
+  const headers = new Headers(resp.headers);
+  headers.set("Cache-Control", cc);
+  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+}
+async function serveAssets(request, env) {
+  const url = new URL(request.url);
+  const resp = await env.ASSETS.fetch(request);
+  if (resp.status === 404) {
+    // SPA fallback: a path with no matching file is the app shell (hash routing means
+    // deep links live under #/, so this is rare but must never 404 the SPA itself).
+    const html = await env.ASSETS.fetch(`${url.origin}/index.html`);
+    return withCache(html, "no-cache");
+  }
+  const isHtml = url.pathname === "/" || /(^|\/)index\.html?$/.test(url.pathname);
+  return withCache(resp, isHtml ? "no-cache" : "public, max-age=31536000, immutable");
+}
+
 async function route(method, path, params, env) {
   const store = new D1Store(env.DB);
   if (method !== "GET") return json({ error: "method_not_allowed" }, 405);
@@ -225,6 +250,8 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "");
 
+    if (path === "/health") return json({ ok: true, t: new Date().toISOString() });
+
     if (path.startsWith("/_internal")) {
       const given = request.headers.get("X-Ingest-Secret") ?? "";
       if (!env.INGEST_SECRET || given !== env.INGEST_SECRET) return json({ error: "unauthorized" }, 401);
@@ -270,6 +297,11 @@ export default {
         if (reply) await client.sendMessage(chatId, reply).catch(() => {});
       }
       return json({ ok: true });
+    }
+
+    // ---- Static assets (SPA) — served through the Worker for correct cache headers.
+    if ((request.method === "GET" || request.method === "HEAD") && !path.startsWith("/api") && !path.startsWith("/v1") && path !== "/health") {
+      return serveAssets(request, env);
     }
 
     return route(request.method, path, url.searchParams, env);
