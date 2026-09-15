@@ -72,7 +72,8 @@ describe("AQI edge-triggered state machine", () => {
     expect(r2.send[0]!.text).toContain("AQI 162");
     expect(r2.send[0]!.text).toContain("Unhealthy");
     expect(r2.send[0]!.text).toContain("Arau, Perlis");
-    expect(r2.send[0]!.text).toContain("ohmyalam.com");
+    // The link is no longer repeated per topic — it is appended once by the notifier.
+    expect(r2.send[0]!.text).not.toContain("ohmyalam.com");
   });
 
   it("surfaces ONE current-condition alert when first contact is already unhealthy", () => {

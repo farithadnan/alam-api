@@ -50,7 +50,7 @@ describe("alert messages — one fact first, place, short, link", () => {
 describe("notification composition — one app link per notification", () => {
   it("a single alert ends with the app link once, and only once", () => {
     const s = composeBody(["<b>⚠️ Thunderstorm Warning — Perlis</b>"], "https://app.oh-alam.my");
-    expect(s.match(/app\.oh-alam\.my/g)!.length).toBe(1);
+    expect(s.match(/href="https:\/\/app\.oh-alam\.my"/g)!.length).toBe(1);
     expect(s).toContain("App: <a href=\"https://app.oh-alam.my\">");
     expect(s.indexOf('<b>⚠️')).toBeLessThan(s.indexOf("App:"));
   });
@@ -58,14 +58,14 @@ describe("notification composition — one app link per notification", () => {
   it("a multi-alert batch leads with the count and still has exactly one link", () => {
     const m = composeBody(["<b>A</b>", "<b>B</b>"], "https://app.oh-alam.my");
     expect(m).toContain("2 new alerts for you");
-    expect(m.match(/app\.oh-alam\.my/g)!.length).toBe(1);
+    expect(m.match(/href="https:\/\/app\.oh-alam\.my"/g)!.length).toBe(1);
     expect(m).toContain("<b>A</b>");
     expect(m).toContain("<b>B</b>");
   });
 
   it("honours the SITE_URL override for the single link", () => {
     const s = composeBody(["<b>A</b>"], "https://staging.example.com");
-    expect(s.match(/staging\.example\.com/g)!.length).toBe(1);
+    expect(s.match(/href="https:\/\/staging\.example\.com"/g)!.length).toBe(1);
   });
 });
 
