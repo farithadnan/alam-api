@@ -273,11 +273,14 @@ export function buildServer(store: Store, dashboardDist = "") {
       cacheControl: false,
       setHeaders(res: import("fastify").FastifyReply, path) {
         const raw = res.raw as import("http").ServerResponse;
-        // index.html + sw.js + manifest must ALWAYS revalidate: a stale index.html
-        // points at pruned bundles (404) and a stale/immutable sw.js keeps old code
-        // (and the old service-worker that serves it) alive for hours.
-        if (/index\.html$|sw\.js$|(?!.*\/).*\.webmanifest$/.test(path))
+        // index.html + manifest must ALWAYS revalidate: a stale index.html points at
+        // pruned bundles (404). sw.js must be NO-STORE: if the browser or edge caches
+        // it (even briefly), the old service-worker keeps serving stale bundles for
+        // hours/days and no code change is ever seen.
+        if (/index\.html$|(?!.*\/).*\.webmanifest$/.test(path))
           raw.setHeader("Cache-Control", "no-cache");
+        else if (/sw\.js$/.test(path))
+          raw.setHeader("Cache-Control", "no-store");
         else raw.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       },
     });
