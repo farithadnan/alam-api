@@ -280,6 +280,9 @@ export default {
         const result = await runCycle(client, store, url, log).catch((e) => ({ error: e.message }));
         return json({ ok: true, result });
       }
+      if (path === "/_internal/push_list" && request.method === "GET") {
+        return json({ subs: await store.listPushSubs() });
+      }
       return json({ error: "not_found", path }, 404);
     }
 
@@ -296,6 +299,21 @@ export default {
         const reply = handleMessage({ store }, chatId, text);
         if (reply) await client.sendMessage(chatId, reply).catch(() => {});
       }
+      return json({ ok: true });
+    }
+
+    // ---- Web-push subscription API (browser Push API) ----
+    if (path === "/push/subscribe" && request.method === "POST") {
+      const b = await request.json().catch(() => null);
+      if (!b?.endpoint || !b?.keys?.p256dh || !b?.keys?.auth) return json({ error: "bad_request", detail: "endpoint + keys required" }, 400);
+      const store = new D1Store(env.DB);
+      await store.savePushSub({ endpoint: String(b.endpoint), p256dh: String(b.keys.p256dh), auth: String(b.keys.auth), town: String(b.town ?? ""), state: String(b.state ?? "") });
+      return json({ ok: true });
+    }
+    if (path === "/push/unsubscribe" && request.method === "POST") {
+      const b = await request.json().catch(() => null);
+      const store = new D1Store(env.DB);
+      if (b?.endpoint) await store.delPush(String(b.endpoint));
       return json({ ok: true });
     }
 

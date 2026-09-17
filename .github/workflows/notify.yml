@@ -12,7 +12,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger alert cycle
+      - name: Trigger alert cycle (Telegram)
         env:
           BASE: ${{ vars.INGEST_BASE }}
           SECRET: ${{ secrets.INGEST_SECRET }}
@@ -20,3 +20,22 @@ jobs:
           curl -fsS -X POST \
             -H "X-Ingest-Secret: $SECRET" \
             "$BASE/_internal/notify"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install web-push
+        run: npm i --no-save web-push@3
+
+      - name: Send web pushes
+        env:
+          INGEST_BASE: ${{ vars.INGEST_BASE }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          VAPID_PUBLIC: ${{ secrets.VAPID_PUBLIC }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+        run: node workflows/push.mjs

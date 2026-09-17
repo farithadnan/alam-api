@@ -194,6 +194,26 @@ export class D1Store {
     }));
   }
 
+  async listPushSubs() {
+    const res = await this.db.prepare(`SELECT endpoint, p256dh, auth, town, state FROM push_subs`).all();
+    return res.results.map((r) => ({ endpoint: String(r.endpoint), p256dh: String(r.p256dh), auth: String(r.auth), town: String(r.town), state: String(r.state) }));
+  }
+
+  async savePushSub(s) {
+    await this.db.prepare(
+      `INSERT INTO push_subs (endpoint, p256dh, auth, town, state)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET
+         p256dh = excluded.p256dh, auth = excluded.auth,
+         town = excluded.town, state = excluded.state,
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+    ).bind(s.endpoint, s.p256dh, s.auth, s.town ?? "", s.state ?? "").run();
+  }
+
+  async delPush(endpoint) {
+    await this.db.prepare(`DELETE FROM push_subs WHERE endpoint = ?`).bind(endpoint).run();
+  }
+
   async getSubscription(chatId) {
     const r = await this.db.prepare(`SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions WHERE chat_id = ?`).bind(chatId).first();
     return r ? { chatId: Number(r.chat_id), townSlug: String(r.town_slug), state: String(r.state), place: String(r.place), alertTypes: String(r.alert_types).split(",").filter(Boolean), enabled: Number(r.enabled) === 1 } : null;
