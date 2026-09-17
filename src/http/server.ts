@@ -273,7 +273,11 @@ export function buildServer(store: Store, dashboardDist = "") {
       cacheControl: false,
       setHeaders(res: import("fastify").FastifyReply, path) {
         const raw = res.raw as import("http").ServerResponse;
-        if (/index\.html$/.test(path)) raw.setHeader("Cache-Control", "no-cache");
+        // index.html + sw.js + manifest must ALWAYS revalidate: a stale index.html
+        // points at pruned bundles (404) and a stale/immutable sw.js keeps old code
+        // (and the old service-worker that serves it) alive for hours.
+        if (/index\.html$|sw\.js$|(?!.*\/).*\.webmanifest$/.test(path))
+          raw.setHeader("Cache-Control", "no-cache");
         else raw.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       },
     });
