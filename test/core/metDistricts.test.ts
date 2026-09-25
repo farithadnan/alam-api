@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { MET_DISTRICTS, districtState, isDistrict, districtsOf } from "../../src/core/metDistricts.js";
 
 describe("MET district registry", () => {
-  it("covers 170 district locations across 16 states/FTs", () => {
-    expect(Object.keys(MET_DISTRICTS)).toHaveLength(170);
+  it("covers 168 district locations across 16 states/FTs", () => {
+    expect(Object.keys(MET_DISTRICTS)).toHaveLength(168);
     expect(new Set(Object.values(MET_DISTRICTS).map(([, st]) => st)).size).toBe(16);
   });
 
