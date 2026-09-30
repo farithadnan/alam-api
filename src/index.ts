@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { loadConfig, cadenceFor } from "./util/config.js";
 import { Store } from "./store/db.js";
 import { buildAdapters } from "./adapters/registry.js";

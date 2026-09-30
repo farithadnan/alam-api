@@ -197,12 +197,6 @@ export function isDistrict(id?: string | null): boolean {
   return !!id && id in MET_DISTRICTS;
 }
 
-/** District name for a MET location id, or null. */
-export function districtName(id?: string | null): string | null {
-  if (!id) return null;
-  return MET_DISTRICTS[id]?.[0] ?? null;
-}
-
 /** All districts for a state, sorted by name. */
 export function districtsOf(state: string): { id: string; name: string }[] {
   return Object.entries(MET_DISTRICTS)

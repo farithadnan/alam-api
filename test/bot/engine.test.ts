@@ -58,7 +58,6 @@ const evalChat = (
     quakes: o.quakes ?? [],
     flood: o.flood ?? [],
     rainfall: o.rainfall ?? [],
-    url: "https://ohmyalam.com",
     now: o.now ?? T0,
   });
 

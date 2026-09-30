@@ -1,119 +1,66 @@
 /**
- * D1Store — the Store contract over Cloudflare D1, for Pages Functions.
+ * D1Store — the Store contract over Cloudflare D1, for the Worker.
  *
- * Drop-in read-path replacement for the `Store(key: node:sqlite)` used by the VPS
- * Fastify server, so handlers that call `store.latestBySource(...)` etc. keep working
- * once their calls are `await`ed (D1 is async; node:sqlite was sync).
+ * Drop-in read-path replacement for the `Store` (node:sqlite) used by the VPS Fastify
+ * server, so handlers that call `store.latestBySource(...)` etc. keep working once their
+ * calls are `await`ed (D1 is async; node:sqlite was sync). The SQL + row mapping live in
+ * ./queries.js, shared with the node store, so the two runtimes cannot drift.
  *
  * D1 API differences handled here, in one place:
  *   - bind via `.bind(...)` (positional), not `.prepare(...).all(...args)`
  *   - `.all()` returns `{ success, results, meta }` (not a bare array)
  *   - `.first()` returns one row or `null`
- *   - columns come back snake_case and must be mapped to the camelCase contract.
  */
+import { SQL, observationRow, stationRow, subscriptionRow, alertStateRow, pushSubRow } from "./queries.js";
+
 export class D1Store {
   /** @param {import("@cloudflare/workers-types").D1Database} db */
   constructor(db) {
     this.db = db;
   }
 
-  /** Map a snake_case D1 row to the camelCase ObservationRow every consumer uses. */
-  mapRow(r) {
-    return {
-      source: String(r.source ?? ""),
-      station: String(r.station ?? ""),
-      stationName: String(r.station_name ?? ""),
-      measuredAt: String(r.measured_at ?? ""),
-      kind: String(r.kind ?? ""),
-      value: Number(r.value),
-      meta: r.meta == null ? undefined : JSON.parse(String(r.meta)),
-    };
-  }
-
-  async select(sql, ...params) {
+  /** Run a SELECT that maps every row through `map` (defaults to an observation row). */
+  async select(sql, params = [], map = observationRow) {
     const prepared = this.db.prepare(sql);
     const res = params.length ? prepared.bind(...params).all() : prepared.all();
-    return (await res).results.map((r) => this.mapRow(r));
+    return (await res).results.map(map);
   }
 
   /** Latest reading per (station, kind) for a source (observed only; no forecast/hourly). */
   async latestBySource(source) {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations o
-         WHERE o.source = ? AND o.kind NOT IN ('forecast','hourly') AND o.measured_at = (
-           SELECT MAX(o2.measured_at) FROM observations o2
-           WHERE o2.source = o.source AND o2.station = o.station AND o2.kind = o.kind
-             AND o2.kind NOT IN ('forecast','hourly')
-         )
-         ORDER BY o.station, o.kind`,
-      source,
-    );
+    return this.select(SQL.latestBySource, [source]);
   }
 
   async history(source, station, since) {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND station = ? AND measured_at >= ?
-         ORDER BY measured_at`,
-      source, station, since,
-    );
+    return this.select(SQL.history, [source, station, since]);
   }
 
   async stations() {
-    const res = await this.db.prepare(`SELECT DISTINCT source, station, kind FROM observations`).all();
-    return res.results.map((r) => ({
-      source: String(r.source),
-      station: String(r.station),
-      kind: String(r.kind),
-    }));
+    return this.select(SQL.stations, [], stationRow);
   }
 
   async latestByKind(kind, limit = 50) {
-    const res = await this.db
-      .prepare(`SELECT source, station, station_name, measured_at, kind, value, meta
-                  FROM observations WHERE kind = ? ORDER BY measured_at DESC, id DESC LIMIT ?`)
-      .bind(kind, limit)
-      .all();
-    return res.results.map((r) => this.mapRow(r));
+    return this.select(SQL.latestByKind, [kind, limit]);
   }
 
   async forecast(source) {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND kind = 'forecast' ORDER BY station, measured_at`,
-      source,
-    );
+    return this.select(SQL.forecast, [source]);
   }
 
   async hourly(source) {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND kind = 'hourly' ORDER BY station, measured_at`,
-      source,
-    );
+    return this.select(SQL.hourly, [source]);
   }
 
   async metForecast() {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE kind = 'metfc' ORDER BY station, measured_at`,
-    );
+    return this.select(SQL.metForecast);
   }
 
   async hazeFor(station, limit = 7) {
-    return this.select(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE kind = 'haze' AND station = ? ORDER BY measured_at LIMIT ?`,
-      station, limit,
-    );
+    return this.select(SQL.hazeFor, [station, limit]);
   }
 
   async townDistrict(townSlug) {
-    const row = await this.db
-      .prepare(`SELECT district_name FROM town_districts WHERE town_slug = ?`)
-      .bind(townSlug)
-      .first();
+    const row = await this.db.prepare(SQL.townDistrict).bind(townSlug).first();
     return row?.district_name ?? null;
   }
 
@@ -130,14 +77,13 @@ export class D1Store {
   }
 
   async _ingestChunk(chunk) {
-    const BASE = `INSERT OR IGNORE INTO observations (source, station, station_name, measured_at, kind, value, meta) VALUES `;
     const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, ?, ?)`).join(", ");
     const vals = chunk.flatMap((r) => [
       r.source, r.station, r.stationName, r.measuredAt, r.kind, r.value,
       r.meta ? JSON.stringify(r.meta) : null,
     ]);
     try {
-      const res = await this.db.prepare(BASE + placeholders).bind(...vals).run();
+      const res = await this.db.prepare(SQL.insertObservationPrefix + placeholders).bind(...vals).run();
       return Number(res.meta.changes ?? 0);
     } catch (e) {
       if (chunk.length <= 1 || !/too many SQL variables/i.test(String(e))) throw e;
@@ -147,10 +93,7 @@ export class D1Store {
   }
 
   async sourceState(adapterId) {
-    const row = await this.db
-      .prepare(`SELECT last_polled_at, last_ok_at FROM source_state WHERE adapter_id = ?`)
-      .bind(adapterId)
-      .first();
+    const row = await this.db.prepare(SQL.sourceState).bind(adapterId).first();
     return { lastPollledAt: row?.last_polled_at ?? null, lastOkAt: row?.last_ok_at ?? null };
   }
 
@@ -163,102 +106,60 @@ export class D1Store {
 
   async recordPoll(adapterId, rows, error) {
     const at = new Date().toISOString();
-    await this.db
-      .prepare(
-        `INSERT INTO source_state (adapter_id, last_polled_at, last_ok_at, last_error, last_rows)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(adapter_id) DO UPDATE SET
-           last_polled_at = excluded.last_polled_at,
-           last_ok_at = CASE WHEN excluded.last_error IS NULL THEN excluded.last_ok_at ELSE source_state.last_ok_at END,
-           last_error = excluded.last_error,
-           last_rows = excluded.last_rows`,
-      )
-      .bind(adapterId, at, error ? null : at, error ?? null, rows)
-      .run();
+    await this.db.prepare(SQL.recordPoll).bind(adapterId, at, error ? null : at, error ?? null, rows).run();
   }
 
   async pruneOlderThan(days) {
     const cutoff = new Date(Date.now() + 8 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 19);
-    const res = await this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).bind(cutoff).run();
+    const res = await this.db.prepare(SQL.pruneOlderThan).bind(cutoff).run();
     return Number(res.meta.changes ?? 0);
   }
 
-  // ---- Telegram subscriptions + alert state (D1 mirror of the SQLite Store) ----
+  // ---- Telegram subscriptions + alert state + web push ----
 
   async getSubscriptions(enabledOnly = true) {
-    const sql = `SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions${enabledOnly ? " WHERE enabled = 1" : ""} ORDER BY chat_id`;
-    const res = await this.db.prepare(sql).all();
-    return res.results.map((r) => ({
-      chatId: Number(r.chat_id), townSlug: String(r.town_slug), state: String(r.state),
-      place: String(r.place), alertTypes: String(r.alert_types).split(",").filter(Boolean), enabled: Number(r.enabled) === 1,
-    }));
-  }
-
-  async listPushSubs() {
-    const res = await this.db.prepare(`SELECT endpoint, p256dh, auth, town, state FROM push_subs`).all();
-    return res.results.map((r) => ({ endpoint: String(r.endpoint), p256dh: String(r.p256dh), auth: String(r.auth), town: String(r.town), state: String(r.state) }));
-  }
-
-  async savePushSub(s) {
-    await this.db.prepare(
-      `INSERT INTO push_subs (endpoint, p256dh, auth, town, state)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(endpoint) DO UPDATE SET
-         p256dh = excluded.p256dh, auth = excluded.auth,
-         town = excluded.town, state = excluded.state,
-         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-    ).bind(s.endpoint, s.p256dh, s.auth, s.town ?? "", s.state ?? "").run();
-  }
-
-  async delPush(endpoint) {
-    await this.db.prepare(`DELETE FROM push_subs WHERE endpoint = ?`).bind(endpoint).run();
+    return this.select(SQL.subscriptions(enabledOnly), [], subscriptionRow);
   }
 
   async getSubscription(chatId) {
-    const r = await this.db.prepare(`SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions WHERE chat_id = ?`).bind(chatId).first();
-    return r ? { chatId: Number(r.chat_id), townSlug: String(r.town_slug), state: String(r.state), place: String(r.place), alertTypes: String(r.alert_types).split(",").filter(Boolean), enabled: Number(r.enabled) === 1 } : null;
+    const r = await this.db.prepare(SQL.subscription).bind(chatId).first();
+    return r ? subscriptionRow(r) : null;
   }
 
   async upsertSubscription(s) {
-    await this.db.prepare(
-      `INSERT INTO chat_subscriptions (chat_id, town_slug, state, place, alert_types, enabled)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(chat_id) DO UPDATE SET
-         town_slug = excluded.town_slug, state = excluded.state, place = excluded.place,
-         alert_types = excluded.alert_types, enabled = excluded.enabled,
-         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-    ).bind(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0).run();
+    await this.db.prepare(SQL.upsertSubscription).bind(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0).run();
   }
 
   async setChatEnabled(chatId, enabled) {
-    await this.db.prepare(`UPDATE chat_subscriptions SET enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`).bind(enabled ? 1 : 0, chatId).run();
+    await this.db.prepare(SQL.setChatEnabled).bind(enabled ? 1 : 0, chatId).run();
   }
 
   async setChatAlertTypes(chatId, alertTypes, enabled = true) {
-    await this.db.prepare(`UPDATE chat_subscriptions SET alert_types = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`).bind(alertTypes.join(","), enabled ? 1 : 0, chatId).run();
+    await this.db.prepare(SQL.setChatAlertTypes).bind(alertTypes.join(","), enabled ? 1 : 0, chatId).run();
   }
 
   async alertStateForChat(chatId) {
-    const res = await this.db.prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? ORDER BY kind, key`).bind(chatId).all();
-    return res.results.map((r) => ({
-      chatId: Number(r.chat_id), kind: String(r.kind), key: String(r.key),
-      lastBand: r.last_band == null ? null : String(r.last_band), lastValue: r.last_value == null ? null : Number(r.last_value),
-      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at), lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
-    }));
+    return this.select(SQL.alertStateForChat, [chatId], alertStateRow);
   }
 
   async getAlertState(chatId, kind, key) {
-    const r = await this.db.prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? AND kind = ? AND key = ?`).bind(chatId, kind, key).first();
-    return r ? { chatId: Number(r.chat_id), kind: String(r.kind), key: String(r.key), lastBand: r.last_band == null ? null : String(r.last_band), lastValue: r.last_value == null ? null : Number(r.last_value), lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at), lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at) } : null;
+    const r = await this.db.prepare(SQL.alertState).bind(chatId, kind, key).first();
+    return r ? alertStateRow(r) : null;
   }
 
   async setAlertState(row) {
-    await this.db.prepare(
-      `INSERT INTO alert_state (chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(chat_id, kind, key) DO UPDATE SET
-         last_band = excluded.last_band, last_value = excluded.last_value,
-         last_alert_at = excluded.last_alert_at, last_recovery_at = excluded.last_recovery_at`,
-    ).bind(row.chatId, row.kind, row.key, row.lastBand, row.lastValue, row.lastAlertAt, row.lastRecoveryAt).run();
+    await this.db.prepare(SQL.setAlertState).bind(row.chatId, row.kind, row.key, row.lastBand, row.lastValue, row.lastAlertAt, row.lastRecoveryAt).run();
+  }
+
+  async listPushSubs() {
+    return this.select(SQL.pushSubs, [], pushSubRow);
+  }
+
+  async savePushSub(s) {
+    await this.db.prepare(SQL.upsertPushSub).bind(s.endpoint, s.p256dh, s.auth, s.town ?? "", s.state ?? "").run();
+  }
+
+  async delPush(endpoint) {
+    await this.db.prepare(SQL.deletePushSub).bind(endpoint).run();
   }
 }

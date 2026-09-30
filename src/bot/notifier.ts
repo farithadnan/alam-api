@@ -64,7 +64,7 @@ export async function runCycle(client: TelegramClient, store: Store, url: string
   let sent = 0;
   for (const sub of subs) {
     const prev = store.alertStateForChat(sub.chatId);
-    const res = evaluateChat({ sub, prev, aqi, warnings, quakes, flood, rainfall, url });
+    const res = evaluateChat({ sub, prev, aqi, warnings, quakes, flood, rainfall });
     // Batch: a chat with several new alerts in one pass gets ONE composed message,
     // so a multiple-alert cycle reads as a summary instead of a burst of DMs.
     const texts = res.send.map((m) => m.text);

@@ -34,15 +34,18 @@ serves both the dashboard's static assets and the read API off one origin, with 
 
 ```
 src/
-  worker.js         the Worker: static-asset SPA + /api/* route() dispatch (Phase 0 slice)
-  store/d1-store.js the Store over D1 (same read contract the Fastify store had, async)
-  store/migrations/ the original SQL migrations, now applied by wrangler to D1
-  adapters/         one file per source, each implements `Adapter`; reused by the GH ingest runner
-  core/             domain types, AQI bands, localities, states, districts (unchanged)
-  http/             original Fastify server — kept until cutover, then removed
-  scheduler.ts      original interval poller — being replaced by the GH Actions runner
-  index.ts          original boot (store -> server -> scheduler) — kept until cutover
-migrations/         wrangler D1 migration files (renamed copies of src/store/migrations/*.sql)
+  worker.js         the Worker: static-asset SPA + /api/* route() dispatch
+  index.ts          VPS boot: store -> Fastify server -> scheduler -> notifier
+  scheduler.ts      VPS interval poller
+  http/server.ts    VPS Fastify server (same read contract as the Worker)
+  store/queries.js  shared SQL + snake_case→camelCase row mappers (one source for both stores)
+  store/db.ts       Store over node:sqlite (VPS), synchronous
+  store/d1-store.js Store over Cloudflare D1 (Worker), async — same method set
+  adapters/         one file per source, each implements `Adapter`
+  core/             domain logic: types, AQI bands, localities, states, districts, warnings, messages
+  bot/              Telegram commands, edge-trigger engine, notifier, resolve
+  util/             config, http, text helpers
+migrations/         the single SQL migration set; applied by wrangler (D1) and node:sqlite (VPS)
 wrangler.toml       Worker + [assets] + D1 bindings; the two-mode dev/prod entry point
 ```
 
@@ -50,6 +53,8 @@ Two rules the code sticks to:
 
 - **One adapter contract.** Every source normalises into `Observation`, so nothing
   downstream knows which source a row came from.
+- **One store contract, one SQL source.** Both stores expose the same methods; the SQL
+  and row mapping live once in `store/queries.js`, so VPS and Worker can't drift.
 - **Reads come from the store, always.** No request handler calls an upstream. If a source
   is down, the last good data keeps serving.
 

@@ -53,8 +53,6 @@ export interface EvaluateInput {
   flood: ObservationRow[];
   /** Latest InfoBanjir heavy-rain alerts (kind "rainfall"). */
   rainfall: ObservationRow[];
-  /** Where alerts link back to (site base URL). */
-  url: string;
   now?: number;
   cooldownMs?: number;
 }
@@ -137,7 +135,7 @@ const validUntil = (w: ObservationRow): string | null | undefined =>
 /** Evaluate one chat against the latest observations. Pure: no I/O. */
 export function evaluateChat(input: EvaluateInput): EvaluateResult {
   const out: EvaluateResult = { send: [], next: [] };
-  const { sub, prev, now: nowInput, url } = input;
+  const { sub, prev, now: nowInput } = input;
   const now = nowInput ?? Date.now();
   const nowIso = new Date(now).toISOString();
   const cd = input.cooldownMs ?? ALERT_COOLDOWN_MS;
@@ -175,7 +173,7 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
         if (coldStart) {
           // First contact and the air is already poor: one current-condition alert,
           // then settle the baseline so this level is never re-nagged.
-          out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice, url }) });
+          out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice }) });
           fresh.lastAlertAt = nowIso;
         } else {
           const worsenedFromClean = prior == null || prevIdx < ALERT_BAND_INDEX;
@@ -183,7 +181,7 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
           // A deterioration to a worse band always informs; re-entering the alert tier
           // is gated by the cooldown so rapid flapping does not nag.
           if (prior == null || climbedWithin || (worsenedFromClean && cooldownOk(fresh.lastAlertAt, now, cd))) {
-            out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice, url }) });
+            out.send.push({ chatId: sub.chatId, text: aqiMsg({ value: st.value, band, place: sub.place, advice: aqiBand(st.value).advice }) });
             fresh.lastAlertAt = nowIso;
           }
         }
@@ -192,7 +190,7 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
         // Clean band: the recovery fires once, on the first return from an alert level.
         const recovering = !coldStart && prior != null && prevIdx >= ALERT_BAND_INDEX;
         if (recovering && cooldownOk(fresh.lastRecoveryAt, now, cd)) {
-          out.send.push({ chatId: sub.chatId, text: aqiRecoveredMsg({ value: st.value, band, place: sub.place, url }) });
+          out.send.push({ chatId: sub.chatId, text: aqiRecoveredMsg({ value: st.value, band, place: sub.place }) });
           fresh.lastRecoveryAt = nowIso;
         }
         record(fresh);
@@ -209,7 +207,7 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
       if (state.get(`warning:${key}`)?.lastAlertAt) continue;
       const row: AlertStateRow = { chatId: sub.chatId, kind: "warning", key, lastBand: null, lastValue: w.value, lastAlertAt: nowIso, lastRecoveryAt: null };
       if (!coldStart) {
-        out.send.push({ chatId: sub.chatId, text: warningMsg({ title: w.stationName, place: sub.place, issuedAt: w.measuredAt, validUntil: validUntil(w), url }) });
+        out.send.push({ chatId: sub.chatId, text: warningMsg({ title: w.stationName, place: sub.place, issuedAt: w.measuredAt, validUntil: validUntil(w) }) });
       }
       record(row);
     }
@@ -229,7 +227,7 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
         if (haversineKm(town.lat, town.lon, lat, lon) > QUAKE_MAX_KM) continue;
         const row: AlertStateRow = { chatId: sub.chatId, kind: "quake", key, lastBand: null, lastValue: q.value, lastAlertAt: nowIso, lastRecoveryAt: null };
         if (!coldStart) {
-          out.send.push({ chatId: sub.chatId, text: quakeMsg({ magnitude: q.value, place: q.stationName, depthKm: (q.meta?.depth as number | null | undefined) ?? null, at: q.measuredAt, url }) });
+          out.send.push({ chatId: sub.chatId, text: quakeMsg({ magnitude: q.value, place: q.stationName, depthKm: (q.meta?.depth as number | null | undefined) ?? null, at: q.measuredAt }) });
         }
         record(row);
       }
@@ -274,9 +272,9 @@ export function evaluateChat(input: EvaluateInput): EvaluateResult {
       }
     };
     evaluateFeed("flood", input.flood, (r) =>
-      floodMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, level: r.value, severity: String(r.meta?.severity ?? ""), trend: r.meta?.trend as string | undefined, url }));
+      floodMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, level: r.value, severity: String(r.meta?.severity ?? ""), trend: r.meta?.trend as string | undefined }));
     evaluateFeed("rainfall", input.rainfall, (r) =>
-      rainMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, mmHour: r.value, severity: String(r.meta?.severity ?? ""), url }));
+      rainMsg({ place: sub.place, station: r.stationName, district: r.meta?.district as string | undefined, mmHour: r.value, severity: String(r.meta?.severity ?? "") }));
   }
 
   return out;

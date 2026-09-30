@@ -68,11 +68,10 @@ export interface WarningInput {
   place: string;
   issuedAt: string;
   validUntil?: string | null;
-  url?: string;
 }
 
 /** A MET warning. */
-export function warningMsg({ title, place, issuedAt, validUntil, url }: WarningInput): string {
+export function warningMsg({ title, place, issuedAt, validUntil }: WarningInput): string {
   const lines = [b(`⚠️ ${esc(title)} — ${esc(place)}`), `Issued ${ago(issuedAt)}`];
   if (validUntil) lines.push(`Valid until ${esc(clock(validUntil))}`);
   return lines.join("\n");
@@ -83,11 +82,10 @@ export interface AqiInput {
   band: string;
   place: string;
   advice?: string;
-  url?: string;
 }
 
 /** Air quality crossing into a worse band. */
-export function aqiMsg({ value, band, place, advice, url }: AqiInput): string {
+export function aqiMsg({ value, band, place, advice }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🔴";
   const body = [b(`${icon} AQI ${Math.round(value)} · ${esc(band)}`), esc(place)];
   if (advice) body.push(esc(advice));
@@ -95,7 +93,7 @@ export function aqiMsg({ value, band, place, advice, url }: AqiInput): string {
 }
 
 /** Air quality coming back down: cheap, and it stops people checking. */
-export function aqiRecoveredMsg({ value, band, url }: AqiInput): string {
+export function aqiRecoveredMsg({ value, band }: AqiInput): string {
   const icon = BAND_ICON[band] ?? "🟢";
   return `${b(`${icon} AQI improved to ${Math.round(value)} · ${esc(band)}`)}\nYour area is clear again.`;
 }
@@ -106,11 +104,10 @@ export interface QuakeInput {
   depthKm?: number | null;
   at: string;
   word?: string;
-  url?: string;
 }
 
 /** A significant earthquake. */
-export function quakeMsg({ magnitude, place, depthKm, at, word, url }: QuakeInput): string {
+export function quakeMsg({ magnitude, place, depthKm, at, word }: QuakeInput): string {
   const head = `🌐 M ${magnitude.toFixed(1)}${word ? ` · ${esc(word)}` : ""} — ${esc(place)}`;
   const detail = [depthKm != null ? `Depth ${Math.round(depthKm)} km` : "", ago(at)].filter(Boolean).join(" · ");
   return `${b(head)}\n${detail}`;
@@ -123,11 +120,10 @@ export interface FloodInput {
   level: number;
   severity: string;
   trend?: string | null;
-  url?: string;
 }
 
 /** A river has crossed into a flood alert band (Danger / Warning / Alert). */
-export function floodMsg({ place, station, district, level, severity, trend, url }: FloodInput): string {
+export function floodMsg({ place, station, district, level, severity, trend }: FloodInput): string {
   const lines = [b("🚨 River flood alert"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`Level ${esc(String(level))} m · ${esc(severity)}${trend ? ` · ${esc(trend)}` : ""}`);
   return lines.join("\n");
@@ -139,11 +135,10 @@ export interface RainInput {
   district?: string | null;
   mmHour: number;
   severity: string;
-  url?: string;
 }
 
 /** Heavy rainfall in your area. */
-export function rainMsg({ place, station, district, mmHour, severity, url }: RainInput): string {
+export function rainMsg({ place, station, district, mmHour, severity }: RainInput): string {
   const lines = [b("🌧 Heavy rain"), `${esc(station)} — ${esc(district ?? place)}`];
   lines.push(`${esc(String(mmHour))} mm/hr · ${esc(severity)}`);
   return lines.join("\n");

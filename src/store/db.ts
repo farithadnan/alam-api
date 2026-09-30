@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 // type-only import of node:sqlite (erased at build/vite time)
 import type { SQLInputValue, SQLOutputValue } from "node:sqlite";
 import type { Observation } from "../core/types.js";
+import { SQL, observationRow, stationRow, subscriptionRow, alertStateRow } from "./queries.js";
 
 // node:sqlite is a builtin newer than the lists Vite/vite-node recognize, so loading
 // it through createRequire bypasses Vite's ESM resolver and stays a native Node require.
@@ -45,6 +46,7 @@ export interface AlertStateRow {
 /** The alert families a subscription can opt into, in display order. */
 export { DEFAULT_ALERT_TYPES } from "../bot/defaults.js";
 
+/** An Observation as the positional values of one insert row. */
 function toRow(o: Observation): SQLInputValue[] {
   return [o.source, o.station, o.stationName, o.measuredAt, o.kind, o.value, o.meta ? JSON.stringify(o.meta) : null];
 }
@@ -60,7 +62,8 @@ export class Store {
 
   /**
    * Versioned SQL migrations. Applies each `migrations/*.sql` in filename order once,
-   * tracked in a `migrations` table, each step inside its own transaction.
+   * tracked in a `migrations` table, each step inside its own transaction. The SQL
+   * lives in the repo-root `migrations/` dir, shared with the D1/Worker deployment.
    */
   private applyMigrations(): void {
     this.db.exec(
@@ -69,7 +72,7 @@ export class Store {
         applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
       )`,
     );
-    const dir = fileURLToPath(new URL("./migrations/", import.meta.url));
+    const dir = fileURLToPath(new URL("../../migrations/", import.meta.url));
     const appliedRows = this.db.prepare(`SELECT id FROM migrations`).all() as { id: string }[];
     const applied = new Set(appliedRows.map((r) => r.id));
     const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
@@ -92,11 +95,8 @@ export class Store {
 
   /** Idempotent upsert keyed on (source, station, measured_at). Returns rows actually inserted. */
   ingest(rows: Observation[]): number {
-    const stmt = this.db.prepare(
-      `INSERT OR IGNORE INTO observations (source, station, station_name, measured_at, kind, value, meta)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    );
-    const tx = this.db.exec("BEGIN");
+    const stmt = this.db.prepare(`${SQL.insertObservationPrefix}(?, ?, ?, ?, ?, ?, ?)`);
+    this.db.exec("BEGIN");
     try {
       let inserted = 0;
       for (const r of rows) {
@@ -111,123 +111,59 @@ export class Store {
     }
   }
 
-  /** SQL returns snake_case columns; map to the camelCase contract consumers use. */
-  private mapRow(r: Record<string, SQLOutputValue>): ObservationRow {
-    return {
-      source: String(r.source),
-      station: String(r.station),
-      stationName: String(r.station_name ?? ""),
-      measuredAt: String(r.measured_at),
-      kind: String(r.kind),
-      value: Number(r.value),
-      meta: r.meta == null ? undefined : JSON.parse(String(r.meta)) as Record<string, unknown>,
-    };
-  }
-
   private read(sql: string, params: SQLInputValue[]): ObservationRow[] {
     const rows = this.db.prepare(sql).all(...params) as Record<string, SQLOutputValue>[];
-    return rows.map((r) => this.mapRow(r));
+    return rows.map((r) => observationRow(r));
   }
 
   /** Latest reading per (station, kind) for a source (observed only; forecast is separate). */
   latestBySource(source: string): ObservationRow[] {
-    return this.read(
-      `SELECT o.source, o.station, o.station_name, o.measured_at, o.kind, o.value, o.meta
-         FROM observations o
-         WHERE o.source = ? AND o.kind NOT IN ('forecast','hourly') AND o.measured_at = (
-           SELECT MAX(o2.measured_at) FROM observations o2
-           WHERE o2.source = o.source
-             AND o2.station = o.station
-             AND o2.kind = o.kind
-             AND o2.kind NOT IN ('forecast','hourly')
-         )
-         ORDER BY o.station, o.kind`,
-      [source],
-    );
+    return this.read(SQL.latestBySource, [source]);
   }
 
   history(source: string, station: string, since: string): ObservationRow[] {
-    return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND station = ? AND measured_at >= ?
-         ORDER BY measured_at`,
-      [source, station, since],
-    );
+    return this.read(SQL.history, [source, station, since]);
   }
 
   stations(): { source: string; station: string; kind: string }[] {
-    const rows = this.db
-      .prepare(`SELECT DISTINCT source, station, kind FROM observations`)
-      .all() as Record<string, SQLOutputValue>[];
-    return rows.map((r) => ({
-      source: String(r.source),
-      station: String(r.station),
-      kind: String(r.kind),
-    }));
+    const rows = this.db.prepare(SQL.stations).all() as Record<string, SQLOutputValue>[];
+    return rows.map((r) => stationRow(r));
   }
 
   /** Most recent observations of a kind (e.g. recent earthquakes). */
   latestByKind(kind: string, limit = 50): ObservationRow[] {
-    const rows = this.db
-      .prepare(
-        `SELECT source, station, station_name, measured_at, kind, value, meta
-           FROM observations WHERE kind = ? ORDER BY measured_at DESC, id DESC LIMIT ?`,
-      )
-      .all(kind, limit) as Record<string, SQLOutputValue>[];
-    return rows.map((r) => this.mapRow(r));
+    return this.read(SQL.latestByKind, [kind, limit]);
   }
 
   /** Daily forecast rows for a source, grouped by station then day ascending. */
   forecast(source: string): ObservationRow[] {
-    return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND kind = 'forecast'
-         ORDER BY station, measured_at`,
-      [source],
-    );
+    return this.read(SQL.forecast, [source]);
   }
 
   /** Hourly rows for a source (next ~24h), by time ascending. */
   hourly(source: string): ObservationRow[] {
-    return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE source = ? AND kind = 'hourly'
-         ORDER BY station, measured_at`,
-      [source],
-    );
+    return this.read(SQL.hourly, [source]);
   }
 
   /** MET official district forecast (7 days per district), oldest date first. */
   metForecast(): ObservationRow[] {
-    return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE kind = 'metfc'
-         ORDER BY station, measured_at`,
-      [],
-    );
+    return this.read(SQL.metForecast, []);
   }
 
   /** Daily haze outlook rows (peak PM2.5) for one locality, soonest first. */
   hazeFor(station: string, limit = 7): ObservationRow[] {
-    return this.read(
-      `SELECT source, station, station_name, measured_at, kind, value, meta
-         FROM observations WHERE kind = 'haze' AND station = ?
-         ORDER BY measured_at LIMIT ?`,
-      [station, limit],
-    );
+    return this.read(SQL.hazeFor, [station, limit]);
   }
 
   pruneOlderThan(days: number): number {
     const cutoff = new Date(Date.now() + 8 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 19);
-    const res = this.db.prepare(`DELETE FROM observations WHERE measured_at < ?`).run(cutoff);
+    const res = this.db.prepare(SQL.pruneOlderThan).run(cutoff);
     return Number(res.changes ?? 0);
   }
 
   /** Per-adapter poll bookkeeping, so the scheduler can skip fresh sources. */
   sourceState(adapterId: string): { lastPollledAt: string | null; lastOkAt: string | null } {
-    const row = this.db
-      .prepare(`SELECT last_polled_at, last_ok_at FROM source_state WHERE adapter_id = ?`)
-      .get(adapterId) as { last_polled_at: string; last_ok_at: string | null } | undefined;
+    const row = this.db.prepare(SQL.sourceState).get(adapterId) as { last_polled_at: string; last_ok_at: string | null } | undefined;
     return { lastPollledAt: row?.last_polled_at ?? null, lastOkAt: row?.last_ok_at ?? null };
   }
 
@@ -248,139 +184,54 @@ export class Store {
    */
   recordPoll(adapterId: string, rows: number, error?: string): void {
     const at = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO source_state (adapter_id, last_polled_at, last_ok_at, last_error, last_rows)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(adapter_id) DO UPDATE SET
-           last_polled_at = excluded.last_polled_at,
-           last_ok_at = CASE WHEN excluded.last_error IS NULL THEN excluded.last_ok_at ELSE source_state.last_ok_at END,
-           last_error = excluded.last_error,
-           last_rows = excluded.last_rows`,
-      )
-      .run(adapterId, at, error ? null : at, error ?? null, rows);
+    this.db.prepare(SQL.recordPoll).run(adapterId, at, error ? null : at, error ?? null, rows);
   }
 
   /** Asserted MET district for a town slug (reference data; see migration 003). */
   townDistrict(townSlug: string): string | null {
-    const row = this.db
-      .prepare(`SELECT district_name FROM town_districts WHERE town_slug = ?`)
-      .get(townSlug) as { district_name: string } | undefined;
+    const row = this.db.prepare(SQL.townDistrict).get(townSlug) as { district_name: string } | undefined;
     return row?.district_name ?? null;
   }
 
   /** Every subscription, optionally only the enabled, alerted-on chats. */
   getSubscriptions(enabledOnly = true): ChatSubscription[] {
-    const sql = `SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions${
-      enabledOnly ? " WHERE enabled = 1" : ""
-    } ORDER BY chat_id`;
-    const rows = this.db.prepare(sql).all() as Record<string, SQLOutputValue>[];
-    return rows.map((r) => ({
-      chatId: Number(r.chat_id),
-      townSlug: String(r.town_slug),
-      state: String(r.state),
-      place: String(r.place),
-      alertTypes: String(r.alert_types).split(",").filter(Boolean),
-      enabled: Number(r.enabled) === 1,
-    }));
+    const rows = this.db.prepare(SQL.subscriptions(enabledOnly)).all() as Record<string, SQLOutputValue>[];
+    return rows.map((r) => subscriptionRow(r));
   }
 
   getSubscription(chatId: number): ChatSubscription | null {
-    const r = this.db
-      .prepare(`SELECT chat_id, town_slug, state, place, alert_types, enabled FROM chat_subscriptions WHERE chat_id = ?`)
-      .get(chatId) as Record<string, SQLOutputValue> | undefined;
-    if (!r) return null;
-    return {
-      chatId: Number(r.chat_id),
-      townSlug: String(r.town_slug),
-      state: String(r.state),
-      place: String(r.place),
-      alertTypes: String(r.alert_types).split(",").filter(Boolean),
-      enabled: Number(r.enabled) === 1,
-    };
+    const r = this.db.prepare(SQL.subscription).get(chatId) as Record<string, SQLOutputValue> | undefined;
+    return r ? subscriptionRow(r) : null;
   }
 
   /** Create or fully refresh a chat's subscription. /start re-opts in with defaults. */
   upsertSubscription(s: Omit<ChatSubscription, "enabled"> & { enabled: boolean }): void {
-    this.db
-      .prepare(
-        `INSERT INTO chat_subscriptions (chat_id, town_slug, state, place, alert_types, enabled)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(chat_id) DO UPDATE SET
-           town_slug = excluded.town_slug,
-           state     = excluded.state,
-           place     = excluded.place,
-           alert_types = excluded.alert_types,
-           enabled   = excluded.enabled,
-           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-      )
-      .run(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0);
+    this.db.prepare(SQL.upsertSubscription).run(s.chatId, s.townSlug, s.state, s.place, s.alertTypes.join(","), s.enabled ? 1 : 0);
   }
 
   setChatEnabled(chatId: number, enabled: boolean): void {
-    this.db
-      .prepare(`UPDATE chat_subscriptions SET enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`)
-      .run(enabled ? 1 : 0, chatId);
+    this.db.prepare(SQL.setChatEnabled).run(enabled ? 1 : 0, chatId);
   }
 
   setChatAlertTypes(chatId: number, alertTypes: string[], enabled = true): void {
-    this.db
-      .prepare(`UPDATE chat_subscriptions SET alert_types = ?, enabled = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE chat_id = ?`)
-      .run(alertTypes.join(","), enabled ? 1 : 0, chatId);
+    this.db.prepare(SQL.setChatAlertTypes).run(alertTypes.join(","), enabled ? 1 : 0, chatId);
   }
 
   /** All edge-trigger state for one chat (preload for one evaluation pass). */
   alertStateForChat(chatId: number): AlertStateRow[] {
-    const rows = this.db
-      .prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? ORDER BY kind, key`)
-      .all(chatId) as Record<string, SQLOutputValue>[];
-    return rows.map((r) => ({
-      chatId: Number(r.chat_id),
-      kind: String(r.kind),
-      key: String(r.key),
-      lastBand: r.last_band == null ? null : String(r.last_band),
-      lastValue: r.last_value == null ? null : Number(r.last_value),
-      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at),
-      lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
-    }));
+    const rows = this.db.prepare(SQL.alertStateForChat).all(chatId) as Record<string, SQLOutputValue>[];
+    return rows.map((r) => alertStateRow(r));
   }
 
   getAlertState(chatId: number, kind: string, key: string): AlertStateRow | null {
-    const r = this.db
-      .prepare(`SELECT chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at FROM alert_state WHERE chat_id = ? AND kind = ? AND key = ?`)
-      .get(chatId, kind, key) as Record<string, SQLOutputValue> | undefined;
-    if (!r) return null;
-    return {
-      chatId: Number(r.chat_id),
-      kind: String(r.kind),
-      key: String(r.key),
-      lastBand: r.last_band == null ? null : String(r.last_band),
-      lastValue: r.last_value == null ? null : Number(r.last_value),
-      lastAlertAt: r.last_alert_at == null ? null : String(r.last_alert_at),
-      lastRecoveryAt: r.last_recovery_at == null ? null : String(r.last_recovery_at),
-    };
+    const r = this.db.prepare(SQL.alertState).get(chatId, kind, key) as Record<string, SQLOutputValue> | undefined;
+    return r ? alertStateRow(r) : null;
   }
 
   setAlertState(row: AlertStateRow): void {
     this.db
-      .prepare(
-        `INSERT INTO alert_state (chat_id, kind, key, last_band, last_value, last_alert_at, last_recovery_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(chat_id, kind, key) DO UPDATE SET
-           last_band = excluded.last_band,
-           last_value = excluded.last_value,
-           last_alert_at = excluded.last_alert_at,
-           last_recovery_at = excluded.last_recovery_at`,
-      )
-      .run(
-        row.chatId,
-        row.kind,
-        row.key,
-        row.lastBand,
-        row.lastValue,
-        row.lastAlertAt,
-        row.lastRecoveryAt,
-      );
+      .prepare(SQL.setAlertState)
+      .run(row.chatId, row.kind, row.key, row.lastBand, row.lastValue, row.lastAlertAt, row.lastRecoveryAt);
   }
 
   close(): void {
