@@ -59,8 +59,12 @@ jobs:
         id: cf
         run: echo "ready=${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}" >> "$GITHUB_OUTPUT"
 
+      # Apply remote D1 migrations. A free-tier D1 read-limit block mid-day also blocks this
+      # query; migrations are a no-op when the schema is unchanged, so don't let a temporary
+      # read-limit prevent the Worker + assets deploy from going out.
       - name: Apply remote D1 migrations
         if: steps.cf.outputs.ready == 'true'
+        continue-on-error: true
         working-directory: alam-api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
