@@ -89,6 +89,9 @@ async function cachedApi(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "");
   if (request.method !== "GET") return route(request.method, path, url.searchParams, env);
+  // Longer TTLs for the read endpoints. summary/hourly power the live dashboard and are
+  // still refreshed every few minutes; 10 min keeps them fresh while cutting D1 reads ~6x.
+  const ttl = (p) => (p.endsWith("/official") ? 3600 : p.endsWith("/summary") ? 600 : 300);
   try {
     const cache = caches.default;
     const hit = await cache.match(request);
@@ -96,7 +99,8 @@ async function cachedApi(request, env) {
     const res = await route("GET", path, url.searchParams, env);
     if (res.status === 200) {
       const headers = new Headers(res.headers);
-      headers.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+      const s = ttl(path);
+      headers.set("Cache-Control", `public, max-age=${s}, stale-while-revalidate=${s * 5}`);
       const cached = new Response(res.body, { status: 200, headers });
       try { await cache.put(request, cached.clone()); } catch {}
       return cached;
