@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: farithadnan/alam-dashboard
+          token: ${{ secrets.ALAM_DASHBOARD_READ }}
           path: alam-dashboard
 
       - uses: actions/setup-node@v4

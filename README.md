@@ -117,7 +117,9 @@ The only manual steps are on the Cloudflare account, the first time:
 
 1. **Set repo secrets** (in the `alam-api` repo → Settings → Secrets and variables → Actions):
    - `CLOUDFLARE_API_TOKEN` — a token scoped to `Workers Scripts: Edit`, `D1: Edit`.
-   - `CLOUDFLARE_ACCOUNT_ID` — visible on the right of any Cloudflare zone dashboard.
+      - `CLOUDFLARE_ACCOUNT_ID` — visible on the right of any Cloudflare zone dashboard.
+      - `ALAM_DASHBOARD_READ` — a fine-grained PAT with **Contents: Read** on the
+        `alam-dashboard` repo (this Workflow clones the private dashboard to build it).
 2. **Create the remote D1 DB once** if it does not exist yet:
    `npx wrangler d1 create alam` and paste the returned `database_id` into `wrangler.toml`
    (currently hard-coded to `f23e188f-0e5d-44ac-a1d3-6a45aa5c747b`).
