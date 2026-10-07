@@ -33,7 +33,15 @@ export const SQL = {
      FROM observations WHERE source = ? AND kind = 'forecast' ORDER BY station, measured_at`,
 
   hourly: `SELECT ${OBS}
-     FROM observations WHERE source = ? AND kind = 'hourly' ORDER BY station, measured_at`,
+       FROM observations WHERE source = ? AND kind = 'hourly' ORDER BY station, measured_at`,
+
+    /** Scoped forecast/hourly: only the requested stations (IN list completed at runtime). */
+    forecastForPrefix: `SELECT ${OBS}
+       FROM observations WHERE source = ? AND kind = 'forecast' AND station IN (`,
+    forecastForSuffix: `) ORDER BY station, measured_at`,
+    hourlyForPrefix: `SELECT ${OBS}
+       FROM observations WHERE source = ? AND kind = 'hourly' AND station IN (`,
+    hourlyForSuffix: `) ORDER BY station, measured_at`,
 
   metForecast: `SELECT ${OBS}
      FROM observations WHERE kind = 'metfc' ORDER BY station, measured_at`,

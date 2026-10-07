@@ -48,8 +48,24 @@ export class D1Store {
   }
 
   async hourly(source) {
-    return this.select(SQL.hourly, [source]);
-  }
+      return this.select(SQL.hourly, [source]);
+    }
+
+    /** Scoped variants: rows only for the given stations (empty array -> []). */
+    async forecastFor(source, stations) {
+      if (!stations || !stations.length) return [];
+      return this.select(
+        SQL.forecastForPrefix + stations.map(() => "?").join(",") + SQL.forecastForSuffix,
+        [source, ...stations],
+      );
+    }
+    async hourlyFor(source, stations) {
+      if (!stations || !stations.length) return [];
+      return this.select(
+        SQL.hourlyForPrefix + stations.map(() => "?").join(",") + SQL.hourlyForSuffix,
+        [source, ...stations],
+      );
+    }
 
   async metForecast() {
     return this.select(SQL.metForecast);

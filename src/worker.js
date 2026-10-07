@@ -80,6 +80,34 @@ const json = (body, status = 200, cache = "") =>
 const log = (msg) => console.log("[bot] " + msg);
 
 /**
+ * Serve the read API through the edge Cache API with a short TTL, so a burst of page
+ * views hits D1 once per minute per URL instead of once per request. Data refreshes every
+ * few minutes, so 60s of staleness is acceptable and keeps the free D1 row-read budget
+ * (5M/day) intact under real traffic.
+ */
+async function cachedApi(request, env) {
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/\/+$/, "");
+  if (request.method !== "GET") return route(request.method, path, url.searchParams, env);
+  try {
+    const cache = caches.default;
+    const hit = await cache.match(request);
+    if (hit) return hit;
+    const res = await route("GET", path, url.searchParams, env);
+    if (res.status === 200) {
+      const headers = new Headers(res.headers);
+      headers.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+      const cached = new Response(res.body, { status: 200, headers });
+      try { await cache.put(request, cached.clone()); } catch {}
+      return cached;
+    }
+    return res;
+  } catch (err) {
+    return json({ error: "upstream_unavailable" }, 502);
+  }
+}
+
+/**
  * Serve a static asset through the Worker so we can set per-file cache control.
  * index.html (and the SPA fallback for deep-link paths) is sent no-cache — it must
  * always revalidate, otherwise the browser can hold old HTML that points at pruned
@@ -131,22 +159,22 @@ async function route(method, path, params, env) {
     const wanted = new Set([q("town"), ...q("towns").split(",")].map((t) => t.trim()).filter(Boolean));
     const inState = (rows) => (state ? rows.filter((r) => r.meta?.state === state) : rows);
     const byTown = (rows) => (wanted.size ? rows.filter((r) => wanted.has(r.station)) : []);
-    const since24 = new Date(Date.now() + MY_OFFSET_MS - 24 * 3_600_000).toISOString().slice(0, 19);
-    const [aqi, weather, earthquakes, warnings, news, climate, allForecast, hourlyForForecast] = await Promise.all([
-      store.latestBySource("doe-eqms").then((r) => inState(r.map(decorate))),
-      store.latestBySource("open-meteo").then((r) => inState(r.filter((x) => x.kind !== "haze"))),
-      store.latestByKind("quake", QUAKE_LIMIT).then((rs) => rs.map(quakeView)),
-      store.latestByKind("warning", LATEST_LIMIT).then((rs) => groupWarnings(rs.map(warningView))),
-      store.latestByKind("news", NEWS_LIMIT * 3).then((rows) => newsRows(rows, NEWS_LIMIT)),
-      store.latestBySource("oni").then((r) => r[0] ?? null),
-      store.forecast("open-meteo"),
-      store.hourly("open-meteo"),
-    ]);
-    const stations = await Promise.all(aqi.map(async (s) => ({
-      ...s,
-      coords: s.meta?.lat != null && s.meta?.lon != null ? { lat: s.meta.lat, lon: s.meta.lon } : stationCoords(String(s.stationName), s.meta?.state),
-      trend: (await store.history("doe-eqms", s.station, since24)).map((r) => r.value),
-    })));
+    const wantedStations = [...wanted];
+        const [aqi, weather, earthquakes, warnings, news, climate, allForecast, hourlyForForecast] = await Promise.all([
+          store.latestBySource("doe-eqms").then((r) => inState(r.map(decorate))),
+          store.latestBySource("open-meteo").then((r) => inState(r.filter((x) => x.kind !== "haze"))),
+          store.latestByKind("quake", QUAKE_LIMIT).then((rs) => rs.map(quakeView)),
+          store.latestByKind("warning", LATEST_LIMIT).then((rs) => groupWarnings(rs.map(warningView))),
+          store.latestByKind("news", NEWS_LIMIT * 3).then((rows) => newsRows(rows, NEWS_LIMIT)),
+          store.latestBySource("oni").then((r) => r[0] ?? null),
+          wantedStations.length ? store.forecastFor("open-meteo", wantedStations) : store.forecast("open-meteo"),
+          wantedStations.length ? store.hourlyFor("open-meteo", wantedStations) : store.hourly("open-meteo"),
+        ]);
+        // Station coords come from in-memory locality data, never a per-station DB read.
+        const stations = aqi.map((s) => ({
+          ...s,
+          coords: s.meta?.lat != null && s.meta?.lon != null ? { lat: s.meta.lat, lon: s.meta.lon } : stationCoords(String(s.stationName), s.meta?.state),
+        }));
     const weatherOut = weather.map((r) => {
       const loc = MALAYSIA_LOCALITIES.find((l) => l.slug === r.station);
       return { ...r, coords: loc ? { lat: loc.lat, lon: loc.lon } : null };
@@ -319,9 +347,9 @@ export default {
 
     // ---- Static assets (SPA) — served through the Worker for correct cache headers.
     if ((request.method === "GET" || request.method === "HEAD") && !path.startsWith("/api") && !path.startsWith("/v1") && path !== "/health") {
-      return serveAssets(request, env);
-    }
+          return serveAssets(request, env);
+        }
 
-    return route(request.method, path, url.searchParams, env);
+        return cachedApi(request, env);
   },
 };
