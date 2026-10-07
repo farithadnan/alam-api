@@ -74,9 +74,10 @@ workflow:
 2. Sets up the database,
 3. Publishes the whole thing to Cloudflare at your custom domain, `app.oh-alam.my`.
 
-The only manual step is done **once**: adding a few Cloudflare and GitHub tokens as "secrets"
-so the automation has permission. That setup is written in plain English in
-**[docs/deployment.md](docs/deployment.md)** — just follow it in order and push.
+The only manual step is done **once**: add a Cloudflare API token and account ID, plus a
+fine-grained GitHub token that can read the dashboard repo, as repository secrets. Then push
+to `main` and the workflow builds the website, sets up the database, and publishes everything
+to Cloudflare automatically.
 
 ---
 
