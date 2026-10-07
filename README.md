@@ -113,6 +113,9 @@ and `wrangler deploy`s one Worker that serves **both** the SPA and `/api/*` off 
 origin. Nothing runs on a VPS or a development PC — the Fastify host and the Cloudflare
 tunnel are gone.
 
+> Full click-by-click setup runbook (PAT → secrets → D1 → custom domain → verify): see
+> **[docs/deployment.md](docs/deployment.md)**.
+
 The only manual steps are on the Cloudflare account, the first time:
 
 1. **Set repo secrets** (in the `alam-api` repo → Settings → Secrets and variables → Actions):
