@@ -70,7 +70,7 @@ Everything runs on your machine — no cloud account, no cloud DB, nothing of pr
 ```bash
 npm install
 # build the dashboard once (or as needed): it serves the SPA in dev too
-#   cd ../udara-dashboard && npm run build
+#   cd ../alam-dashboard && npm run build
 # create the LOCAL D1 schema (matches the remote one)
 npx wrangler d1 migrations apply DB --local
 # local secrets (gitignored) go in .dev.vars, e.g.:
@@ -107,20 +107,28 @@ cloudflared tunnel --config /dev/null --url http://localhost:8788
 
 ### Production (deploy)
 
-Requires the Cloudflare credential — source `~/.cloudflared/wrangler.env` (a private
-`CLOUDFLARE_API_TOKEN`; never commit it), or run `npx wrangler login`.
+The single-origin deploy is fully automated by GitHub Actions (`.github/workflows/deploy.yml`):
+on push to `main` it builds `alam-dashboard` into `dist/`, applies the remote D1 migrations,
+and `wrangler deploy`s one Worker that serves **both** the SPA and `/api/*` off the same
+origin. Nothing runs on a VPS or a development PC — the Fastify host and the Cloudflare
+tunnel are gone.
 
-```bash
-source ~/.cloudflared/wrangler.env      # or export CLOUDFLARE_API_TOKEN=...
-npx wrangler d1 migrations apply DB --remote   # create the remote prod D1 schema
-npx wrangler secret put TELEGRAM_BOT_TOKEN     # persisted Cloudflare-side, never in repo
-# (repeat pour each secret: NEWSDATA_API_KEY, INGEST_SECRET, WEBHOOK_SECRET)
-npx wrangler deploy                    # serves SPA + /api/*; D1 = remote `alam` DB
-```
+The only manual steps are on the Cloudflare account, the first time:
 
-The Worker is published to a Workers zone/custom domain — at cutover the SPA + API move to
-`app.oh-alam.my` (the current VPS + Cloudflare named tunnel keeps that domain until then).
-Cloudflare-managed CI should build `alam-dashboard` and `wrangler deploy` on merge to `main`.
+1. **Set repo secrets** (in the `alam-api` repo → Settings → Secrets and variables → Actions):
+   - `CLOUDFLARE_API_TOKEN` — a token scoped to `Workers Scripts: Edit`, `D1: Edit`.
+   - `CLOUDFLARE_ACCOUNT_ID` — visible on the right of any Cloudflare zone dashboard.
+2. **Create the remote D1 DB once** if it does not exist yet:
+   `npx wrangler d1 create alam` and paste the returned `database_id` into `wrangler.toml`
+   (currently hard-coded to `f23e188f-0e5d-44ac-a1d3-6a45aa5c747b`).
+3. **Service secrets** are sent by the GH runners, never stored on any host: `INGEST_SECRET`
+   (see `workflows/ingest.mjs` / `notify.yml`), `NEWSDATA_API_KEY`, `TELEGRAM_BOT_TOKEN`,
+   and `VAPID_PUBLIC`/`VAPID_PRIVATE` (Web Push) — set as repo secrets/variables.
+4. **Custom domain** — attach `app.oh-alam.my` to the Worker (Workers → `alam` → Settings →
+   Domains & Routes → Add custom domain). It also gets a free `*.workers.dev` URL for
+   immediate access.
+
+Then push to `main` and the Worker is live at `app.oh-alam.my`.
 
 ## API
 

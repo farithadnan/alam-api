@@ -18,7 +18,7 @@ database_id = "f23e188f-0e5d-44ac-a1d3-6a45aa5c747b"
 migrations_dir = "migrations"
 
 [assets]
-directory = "../udara-dashboard/dist"
+directory = "../alam-dashboard/dist"
 # Serve assets THROUGH the Worker so we can set cache headers per file: index.html is
 # always revalidated (no-cache) so the browser never holds an HTML that references a
 # pruned bundle (→ 404 until hard refresh), while hashed /assets/* bundles are immutable.

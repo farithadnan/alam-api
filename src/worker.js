@@ -1,7 +1,7 @@
 /**
  * Alam — Cloudflare Worker (single origin: SPA static assets + the read API).
  *
- * The dashboard build (../udara-dashboard/dist) is served by the platform as static
+ * The dashboard build (../alam-dashboard/dist) is served by the platform as static
  * assets ([assets] in wrangler.toml); requests that do NOT match a file (i.e. /api/*,
  * /health, unknown routes) land here. One origin for the SPA and the API, exactly as the
  * VPS Fastify app served them, so the dashboard's `VITE_API_URL=""` (same-origin) works

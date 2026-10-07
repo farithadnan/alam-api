@@ -1,0 +1,96 @@
+# Single-origin deploy: build the SPA and publish the Worker that serves BOTH the
+# dashboard assets and the /api - one origin, no VPS, nothing hosted on your PC.
+#
+# On push to main (or manual dispatch): builds alam-dashboard into dist/, applies
+# remote D1 migrations, then `wrangler deploy`s the Worker (which serves the SPA via
+# the [assets] block at ../alam-dashboard/dist).
+#
+# Requires repo secrets: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
+# The deploy is SKIPPED (not failed) if those secrets are absent, so CI stays green.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Check the api repo into alem-api/ so the Worker's ../alam-dashboard path
+      # (wrangler.toml [assets]) resolves to the dashboard checked out alongside it.
+      - uses: actions/checkout@v4
+        with:
+          path: alam-api
+
+      - uses: actions/checkout@v4
+        with:
+          repository: farithadnan/alam-dashboard
+          path: alam-dashboard
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |-
+            alam-api/package-lock.json
+            alam-dashboard/package-lock.json
+
+      # Build the dashboard (its dist/ is what the Worker serves)
+      - name: Dashboard deps
+        working-directory: alam-dashboard
+        run: npm ci
+
+      - name: Dashboard typecheck
+        working-directory: alam-dashboard
+        run: npm run typecheck
+
+      - name: Dashboard build
+        working-directory: alam-dashboard
+        env:
+          VITE_CARTO_KEY: ${{ secrets.VITE_CARTO_KEY }}
+        run: npm run build
+
+      - name: Check Cloudflare credentials
+        id: cf
+        run: echo "ready=${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Apply remote D1 migrations
+        if: steps.cf.outputs.ready == 'true'
+        working-directory: alam-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm ci && npx wrangler d1 migrations apply DB --remote
+
+      # Keep the Worker's server-side secret in sync with the one the GH runners send,
+      # so INGEST_SECRET / TELEGRAM_* are always consistent after every deploy.
+      - name: Set Worker secrets
+        if: steps.cf.outputs.ready == 'true'
+        working-directory: alam-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+        run: |
+          set -e
+          if [ -n "$INGEST_SECRET" ]; then echo "$INGEST_SECRET" | npx wrangler secret put INGEST_SECRET; fi
+          if [ -n "$TELEGRAM_BOT_TOKEN" ]; then echo "$TELEGRAM_BOT_TOKEN" | npx wrangler secret put TELEGRAM_BOT_TOKEN; fi
+          if [ -n "$TELEGRAM_WEBHOOK_SECRET" ]; then echo "$TELEGRAM_WEBHOOK_SECRET" | npx wrangler secret put TELEGRAM_WEBHOOK_SECRET; fi
+
+      - name: Deploy Worker (SPA + /api)
+        if: steps.cf.outputs.ready == 'true'
+        working-directory: alam-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Deploy skipped
+        if: steps.cf.outputs.ready != 'true'
+        run: echo "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set - skipping deploy (build passed)."
